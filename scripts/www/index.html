@@ -1,11 +1,614 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>艺联清单 V9.1</title>
+    
+    <!-- 【核心新增】：强制浏览器最高优先级预加载 Logo，防止闪屏时图片加载不出来 -->
+    <link rel="preload" href="./logo.png" as="image">
+
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 localForage 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <style>
+        .day-btn { transition: all 0.2s ease; }
+        ::-webkit-scrollbar { display: none; }
+        
+        /* 闪屏元素的进场动画 */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up {
+            animation: fadeUp 0.8s ease-out forwards;
+        }
+        .delay-100 { animation-delay: 150ms; }
+        .delay-200 { animation-delay: 300ms; }
+    </style>
+</head>
+<body class="bg-[#f5f7f5] font-sans min-h-screen text-gray-800 pb-10">
+
+    <!-- 品牌闪屏页面 (Splash Screen) -->
+    <div id="splash-screen" class="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center transition-opacity duration-700 ease-in-out">
+        <!-- Logo 图片（加入了预加载机制） -->
+        <img src="img/logo.jpg" alt="艺数清单 Logo" class="w-40 h-40 mb-8 object-contain animate-fade-up" onerror="this.style.display='none';">
+        
+        <!-- Slogan 文字 -->
+        <h1 class="text-4xl font-bold text-[#00a651] mb-5 tracking-[0.2em] pl-2 animate-fade-up delay-100 opacity-0">艺数清单</h1>
+        <h2 class="text-2xl font-medium text-[#00a651] tracking-[0.1em] animate-fade-up delay-200 opacity-0">您的时间管家</h2>
+    </div>
+
+    <!-- 主界面内容 -->
+    <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg sm:rounded-2xl sm:min-h-[800px] sm:mt-6 sm:overflow-hidden relative">
+        
+        <!-- 顶部导航条 -->
+        <div class="bg-[#eaf5ec] p-4 flex justify-between items-center sticky top-0 z-20">
+            <h1 class="text-xl font-bold text-gray-800">艺联清单</h1>
+            <div class="flex items-center gap-3">
+                <div class="text-sm text-[#4caf50] font-semibold bg-[#dcfce7] px-3 py-1 rounded-full">当前：<span id="header-date"></span></div>
+                <button onclick="clearAllData()" class="text-xl text-gray-400 hover:text-red-500 transition-colors" title="清空所有测试数据">⚙️</button>
+            </div>
+        </div>
+
+        <div class="p-5 space-y-6">
+            
+            <!-- 模块 1：创建习惯 -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div class="mb-5 flex gap-2">
+                    <input type="text" id="task-name" class="flex-1 bg-[#f8faf8] border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4caf50]" placeholder="例如早起、背单词等">
+                </div>
+                <div class="mb-5">
+                    <h3 class="text-sm font-bold text-gray-700 mb-3">习惯周期</h3>
+                    <div class="flex gap-2 mb-3">
+                        <span class="bg-[#eaf5ec] text-[#2e7d32] px-4 py-1.5 rounded-md text-sm font-bold cursor-pointer">按周</span>
+                        <span class="text-gray-400 px-4 py-1.5 rounded-md text-sm cursor-pointer">固定/其他暂不演示</span>
+                    </div>
+                    <div class="flex justify-between mt-4" id="week-days-container"></div>
+                </div>
+                <div class="mb-5 flex justify-between items-center border-t border-gray-50 pt-4">
+                    <h3 class="text-sm font-bold text-gray-700">打卡开始日期</h3>
+                    <input type="date" id="start-date" class="text-sm text-gray-600 border-none outline-none bg-transparent text-right">
+                </div>
+                <button onclick="createTask()" class="w-full bg-[#4caf50] hover:bg-[#43a047] text-white font-bold py-3 px-4 rounded-full shadow-md transition-colors">
+                    保存习惯，开始执行
+                </button>
+            </div>
+
+            <!-- 模块 2：待办区 -->
+            <div class="bg-[#fcfdfc] p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <button onclick="changeDate(-1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">◀</button>
+                    <div class="text-center">
+                        <h2 class="text-lg font-bold text-gray-800" id="view-date-title">今日待办</h2>
+                        <span class="text-xs text-gray-400" id="view-date-subtitle"></span>
+                    </div>
+                    <button onclick="changeDate(1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">▶</button>
+                </div>
+                <div id="today-tasks-list" class="space-y-3"></div>
+            </div>
+
+            <!-- 模块 3：打卡记录墙 -->
+            <div class="bg-[#fcfdfc] p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <button onclick="changeHistoryDate(-1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">◀</button>
+                    <div class="text-center">
+                        <h2 class="text-lg font-bold text-gray-800" id="history-date-title">今日记录墙</h2>
+                        <span class="text-xs text-gray-400" id="history-date-subtitle"></span>
+                    </div>
+                    <button onclick="changeHistoryDate(1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">▶</button>
+                </div>
+                <div id="history-list" class="grid grid-cols-2 gap-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 打卡弹窗 -->
+    <div id="checkin-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden flex justify-center items-end sm:items-center z-50">
+        <div class="bg-white p-6 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-96 transform transition-transform">
+            <h3 class="text-xl font-bold mb-4 text-center text-gray-800" id="modal-title">进行打卡</h3>
+            <input type="hidden" id="current-task-id">
+            
+            <div class="mb-4 border-2 border-dashed border-[#a5d6a7] rounded-xl p-4 text-center bg-[#f1f8e9]">
+                <label for="photo-upload" class="cursor-pointer block">
+                    <div class="text-[#4caf50] mb-2 text-3xl">📷</div>
+                    <p class="text-sm text-gray-600 font-medium">点击拍摄或上传照片</p>
+                    <input type="file" id="photo-upload" accept="image/*" class="hidden" onchange="previewImage(event)"/>
+                </label>
+                <img id="image-preview" class="hidden mt-3 rounded-lg max-h-32 mx-auto object-cover" />
+            </div>
+
+            <div class="mb-6">
+                <textarea id="checkin-note" rows="2" class="w-full bg-[#f8faf8] border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4caf50]" placeholder="写点打卡心得吧（例如：已经完成作业啦！）"></textarea>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeModal()" class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-full font-bold hover:bg-gray-200">取消</button>
+                <button id="submit-btn" onclick="submitCheckIn()" class="flex-1 py-3 bg-[#4caf50] text-white rounded-full font-bold hover:bg-[#43a047]">确认打卡</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心数据结构 ---
+        const DAYS_MAP =[
+            { label: '一', value: 1 }, { label: '二', value: 2 }, 
+            { label: '三', value: 3 }, { label: '四', value: 4 }, 
+            { label: '五', value: 5 }, { label: '六', value: 6 }, 
+            { label: '日', value: 0 }
+        ];
+        
+        let selectedDays =[1, 2, 3, 4, 5, 6, 0]; 
+        let tasks =[];
+        let records =[];
+        
+        let viewDateObj = new Date();        
+        let historyDateObj = new Date();     
+
+        function getStrFromDate(d) {
+            return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        }
+
+        // --- 0. 异步数据库初始化与闪屏控制 ---
+        async function initData() {
+            // 1.7 秒的强制倒计时，保证闪屏停留时间
+            const minSplashTime = new Promise(resolve => setTimeout(resolve, 1700));
+            
+            const loadData = (async () => {
+                let lfTasks = await localforage.getItem('habitTasks');
+                let lfRecords = await localforage.getItem('habitRecords');
+
+                let oldTasks = localStorage.getItem('habitTasks');
+                let oldRecords = localStorage.getItem('habitRecords');
+
+                if (!lfTasks && oldTasks) {
+                    tasks = JSON.parse(oldTasks);
+                    await localforage.setItem('habitTasks', tasks);
+                    localStorage.removeItem('habitTasks'); 
+                } else {
+                    tasks = lfTasks ||[];
+                }
+
+                if (!lfRecords && oldRecords) {
+                    records = JSON.parse(oldRecords);
+                    await localforage.setItem('habitRecords', records);
+                    localStorage.removeItem('habitRecords'); 
+                } else {
+                    records = lfRecords ||[];
+                }
+            })();
+
+            try {
+                await Promise.all([loadData, minSplashTime]);
+                initUI();
+
+                // 优雅地淡出并移除闪屏
+                const splash = document.getElementById('splash-screen');
+                splash.style.opacity = '0'; 
+                setTimeout(() => {
+                    splash.style.display = 'none'; 
+                }, 700); 
+
+            } catch (err) {
+                console.error('数据库初始化失败:', err);
+                alert('数据库加载失败，请刷新重试！');
+            }
+        }
+
+        // --- 后续逻辑完全保持不变 ---
+        function initUI() {
+            document.getElementById('header-date').innerText = new Date().toLocaleDateString('zh-CN', {month: 'long', day: 'numeric'});
+            document.getElementById('start-date').value = getStrFromDate(new Date());
+
+            const container = document.getElementById('week-days-container');
+            container.innerHTML = '';
+            DAYS_MAP.forEach(day => {
+                const isSelected = selectedDays.includes(day.value);
+                const btn = document.createElement('div');
+                btn.className = `day-btn w-9 h-9 flex items-center justify-center rounded-full text-sm font-bold cursor-pointer ${isSelected ? 'bg-[#a5d6a7] text-[#1b5e20]' : 'bg-gray-100 text-gray-400'}`;
+                btn.innerText = day.label;
+                btn.onclick = () => toggleDay(day.value, btn);
+                container.appendChild(btn);
+            });
+
+            renderTasks();
+            renderRecords();
+        }
+
+        function toggleDay(dayValue, btnElement) {
+            if (selectedDays.includes(dayValue)) {
+                if (selectedDays.length === 1) return alert('至少需要选择一天打卡哦！');
+                selectedDays = selectedDays.filter(d => d !== dayValue);
+                btnElement.className = 'day-btn w-9 h-9 flex items-center justify-center rounded-full text-sm font-bold cursor-pointer bg-gray-100 text-gray-400';
+            } else {
+                selectedDays.push(dayValue);
+                btnElement.className = 'day-btn w-9 h-9 flex items-center justify-center rounded-full text-sm font-bold cursor-pointer bg-[#a5d6a7] text-[#1b5e20]';
+            }
+        }
+
+        function createTask() {
+            const name = document.getElementById('task-name').value.trim();
+            const startDate = document.getElementById('start-date').value;
+
+            if (!name) return alert('请输入习惯名称！');
+            if (selectedDays.length === 0) return alert('请选择打卡周期！');
+
+            const newTask = {
+                id: 'task_' + Date.now(),
+                name: name,
+                cycleDays:[...selectedDays],
+                startDate: startDate,
+                createTime: new Date().getTime()
+            };
+
+            tasks.push(newTask);
+            localforage.setItem('habitTasks', tasks); 
+            
+            document.getElementById('task-name').value = '';
+            alert('习惯创建成功！');
+            renderTasks();
+        }
+
+        function changeDate(offset) {
+            viewDateObj.setDate(viewDateObj.getDate() + offset);
+            renderTasks();
+        }
+
+        function changeHistoryDate(offset) {
+            historyDateObj.setDate(historyDateObj.getDate() + offset);
+            renderRecords();
+        }
+
+        function renderTasks() {
+            const listDiv = document.getElementById('today-tasks-list');
+            listDiv.innerHTML = '';
+
+            const todayStr = getStrFromDate(new Date());
+            const viewDateStr = getStrFromDate(viewDateObj);
+            const viewDayOfWeek = viewDateObj.getDay();
+
+            const titleEl = document.getElementById('view-date-title');
+            const subTitleEl = document.getElementById('view-date-subtitle');
+            subTitleEl.textContent = viewDateStr;
+            
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            if (viewDateStr === todayStr) {
+                titleEl.textContent = '今日待办';
+            } else if (viewDateStr === getStrFromDate(yesterdayDate)) {
+                titleEl.textContent = '昨日待办';
+            } else {
+                titleEl.textContent = `${viewDateObj.getMonth()+1}月${viewDateObj.getDate()}日 待办`;
+            }
+
+            const todaysTasks = tasks.filter(task => {
+                const hasStarted = task.startDate <= viewDateStr;
+                const isScheduledToday = task.cycleDays.includes(viewDayOfWeek);
+                return hasStarted && isScheduledToday;
+            });
+
+            if (todaysTasks.length === 0) {
+                listDiv.innerHTML = '<div class="text-center p-6 bg-gray-50 rounded-xl text-gray-400 text-sm border border-dashed border-gray-200">这一天没有任何打卡任务哦~</div>';
+                return;
+            }
+
+            todaysTasks.forEach(task => {
+                const hasCheckedIn = records.some(r => r.taskId === task.id && r.date === viewDateStr);
+
+                let buttonHtml = '';
+                const isFuture = viewDateStr > todayStr;
+                const isPast = viewDateStr < todayStr;
+
+                if (hasCheckedIn) {
+                    buttonHtml = `<button disabled class="bg-gray-100 text-gray-400 px-4 py-2 rounded-full text-sm font-bold flex items-center gap-1"><span>✅</span> 已完成</button>`;
+                } else {
+                    if (isFuture) {
+                        buttonHtml = `<button disabled class="bg-gray-100 text-gray-400 px-4 py-2 rounded-full text-sm font-bold">⏳ 未开始</button>`;
+                    } else if (isPast) {
+                        buttonHtml = `<button onclick="openModal('${task.id}', '${task.name}')" class="bg-orange-100 text-orange-600 px-4 py-2 rounded-full text-sm font-bold hover:bg-orange-200">⚠️ 补卡</button>`;
+                    } else {
+                        buttonHtml = `<button onclick="openModal('${task.id}', '${task.name}')" class="bg-[#eaf5ec] text-[#2e7d32] px-4 py-2 rounded-full text-sm font-bold hover:bg-[#c8e6c9] transition-colors shadow-sm">🎯 去打卡</button>`;
+                    }
+                }
+
+                const div = document.createElement('div');
+                div.className = 'relative overflow-hidden rounded-xl bg-red-500'; 
+                div.innerHTML = `
+                    <div class="absolute inset-y-0 right-0 w-24 flex items-center justify-end pr-4 text-white font-bold cursor-pointer" onclick="deleteTask('${task.id}')">
+                        删除 🗑️
+                    </div>
+                    <div class="task-card relative bg-white p-4 flex justify-between items-center rounded-xl shadow-sm border border-gray-100 z-10 transition-transform duration-300">
+                        <div class="flex items-center gap-3 pointer-events-none">
+                            <div class="w-10 h-10 bg-[#f1f8e9] rounded-full flex items-center justify-center text-xl">🎯</div>
+                            <div>
+                                <p class="font-bold text-gray-800 text-base">${task.name}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">⬅️ 左滑可删除该习惯</p>
+                            </div>
+                        </div>
+                        ${buttonHtml}
+                    </div>
+                `;
+                listDiv.appendChild(div);
+            });
+
+            attachSwipeListeners();
+        }
+
+        function attachSwipeListeners() {
+            const cards = document.querySelectorAll('.task-card');
+            cards.forEach(card => {
+                let isDragging = false;
+                let startX = 0;
+                let currentX = 0;
+
+                const startDrag = (e) => {
+                    isDragging = true;
+                    startX = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
+                    card.style.transition = 'none'; 
+                };
+
+                const moveDrag = (e) => {
+                    if (!isDragging) return;
+                    const x = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
+                    currentX = x - startX;
+                    if (currentX < 0) {
+                        const moveX = Math.max(currentX, -90); 
+                        card.style.transform = `translateX(${moveX}px)`;
+                    }
+                };
+
+                const endDrag = (e) => {
+                    if (!isDragging) return;
+                    isDragging = false;
+                    card.style.transition = 'transform 0.3s ease'; 
+                    if (currentX < -45) {
+                        card.style.transform = `translateX(-80px)`;
+                    } else {
+                        card.style.transform = `translateX(0px)`;
+                    }
+                    currentX = 0;
+                };
+
+                card.addEventListener('touchstart', startDrag, {passive: true});
+                card.addEventListener('touchmove', moveDrag, {passive: true});
+                card.addEventListener('touchend', endDrag);
+
+                card.addEventListener('mousedown', startDrag);
+                card.addEventListener('mousemove', moveDrag);
+                card.addEventListener('mouseup', endDrag);
+                card.addEventListener('mouseleave', endDrag);
+            });
+        }
+
+        function deleteTask(taskId) {
+            if(confirm('确定要删除这个习惯吗？删除后未来将不再出现。')) {
+                tasks = tasks.filter(t => t.id !== taskId);
+                localforage.setItem('habitTasks', tasks); 
+                renderTasks();
+            }
+        }
+
+        function clearAllData() {
+            if(confirm('⚠️ 危险操作：作为产品经理测试，你确定要清空所有的习惯和打卡记录吗？清空后将无法恢复！')) {
+                localforage.clear().then(() => {
+                    localStorage.clear(); 
+                    alert('数据已全部清空！即将刷新页面。');
+                    location.reload();
+                });
+            }
+        }
+
+        function openModal(taskId, taskName) {
+            document.getElementById('current-task-id').value = taskId;
+            const isPast = getStrFromDate(viewDateObj) < getStrFromDate(new Date());
+            document.getElementById('modal-title').textContent = isPast ? `补卡: ${taskName}` : `打卡: ${taskName}`;
+            
+            document.getElementById('photo-upload').value = ''; 
+            document.getElementById('image-preview').classList.add('hidden');
+            document.getElementById('image-preview').src = '';
+            document.getElementById('checkin-note').value = ''; 
+            
+            const btn = document.getElementById('submit-btn');
+            btn.textContent = '确认打卡';
+            btn.disabled = false;
+            btn.className = 'flex-1 py-3 bg-[#4caf50] text-white rounded-full font-bold hover:bg-[#43a047]';
+
+            document.getElementById('checkin-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('checkin-modal').classList.add('hidden');
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById('image-preview');
+                    img.src = e.target.result;
+                    img.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                    callback(compressedBase64);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function submitCheckIn() {
+            const taskId = document.getElementById('current-task-id').value;
+            const fileInput = document.getElementById('photo-upload');
+            const file = fileInput.files[0];
+            const note = document.getElementById('checkin-note').value.trim();
+
+            if (!file && !note) {
+                return alert('请至少上传一张照片或写一句心得哦！');
+            }
+
+            const btn = document.getElementById('submit-btn');
+            btn.textContent = '保存中...';
+            btn.disabled = true;
+            btn.className = 'flex-1 py-3 bg-gray-400 text-white rounded-full font-bold';
+
+            const saveRecord = (imageBase64) => {
+                const task = tasks.find(t => t.id === taskId);
+                const checkInDateStr = getStrFromDate(viewDateObj);
+                
+                const newRecord = {
+                    id: 'rec_' + Date.now(),
+                    taskId: taskId,
+                    taskName: task.name,
+                    date: checkInDateStr,
+                    time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+                    image: imageBase64, 
+                    note: note          
+                };
+
+                records.unshift(newRecord); 
+                
+                localforage.setItem('habitRecords', records).then(() => {
+                    closeModal();
+                    historyDateObj = new Date(viewDateObj);
+                    renderTasks(); 
+                    renderRecords();
+                }).catch((error) => {
+                    console.error(error);
+                    alert('保存失败，请重试！');
+                    records.shift(); 
+                    btn.textContent = '确认打卡';
+                    btn.disabled = false;
+                    btn.className = 'flex-1 py-3 bg-[#4caf50] text-white rounded-full font-bold hover:bg-[#43a047]';
+                });
+            };
+
+            if (file) {
+                compressImage(file, function(compressedResult) {
+                    saveRecord(compressedResult);
+                });
+            } else {
+                saveRecord(null);
+            }
+        }
+
+        function deleteRecord(recordId) {
+            if(confirm('确定要删除这条打卡记录吗？删除后不可恢复哦！')) {
+                records = records.filter(r => r.id !== recordId);
+                
+                localforage.setItem('habitRecords', records).then(() => {
+                    renderRecords();
+                    renderTasks();
+                }).catch(err => {
+                    console.error('删除失败:', err);
+                    alert('删除失败，请重试！');
+                });
+            }
+        }
+
+        function renderRecords() {
+            const historyListDiv = document.getElementById('history-list');
+            historyListDiv.innerHTML = '';
+
+            const todayStr = getStrFromDate(new Date());
+            const viewHistoryStr = getStrFromDate(historyDateObj);
+
+            const titleEl = document.getElementById('history-date-title');
+            const subTitleEl = document.getElementById('history-date-subtitle');
+            subTitleEl.textContent = viewHistoryStr;
+            
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            if (viewHistoryStr === todayStr) {
+                titleEl.textContent = '今日记录墙';
+            } else if (viewHistoryStr === getStrFromDate(yesterdayDate)) {
+                titleEl.textContent = '昨日记录墙';
+            } else {
+                titleEl.textContent = `${historyDateObj.getMonth()+1}月${historyDateObj.getDate()}日 记录`;
+            }
+
+            const dailyRecords = records.filter(r => r.date === viewHistoryStr);
+
+            if (dailyRecords.length === 0) {
+                historyListDiv.innerHTML = `<p class="text-gray-400 text-sm col-span-2 text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">这一天还没有留下足迹哦~</p>`;
+                return;
+            }
+
+            dailyRecords.forEach(record => {
+                const div = document.createElement('div');
+                div.className = 'bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col relative';
+                
+                let imageHtml = '';
+                if (record.image) {
+                    imageHtml = `<img src="${record.image}" class="w-full h-32 object-cover">`;
+                } else {
+                    imageHtml = `<div class="w-full h-24 bg-[#eaf5ec] flex items-center justify-center text-3xl">📝</div>`;
+                }
+
+                let noteHtml = '';
+                if (record.note) {
+                    noteHtml = `<div class="px-3 py-2 text-xs text-gray-600 border-b border-gray-50 italic">"${record.note}"</div>`;
+                }
+
+                div.innerHTML = `
+                    <div class="relative overflow-hidden bg-gray-200">
+                        ${imageHtml}
+                        <button onclick="deleteRecord('${record.id}')" class="absolute top-2 right-2 bg-black/40 hover:bg-red-500 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs backdrop-blur-sm transition-colors z-10 opacity-80 hover:opacity-100 shadow-sm" title="删除该记录">
+                            🗑️
+                        </button>
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white pointer-events-none">
+                            <p class="text-xs font-bold drop-shadow-md">${record.taskName}</p>
+                        </div>
+                    </div>
+                    ${noteHtml}
+                    <div class="p-2 flex justify-between items-center bg-[#fafafa] mt-auto">
+                        <span class="text-[10px] text-gray-400">✅ ${record.date}</span>
+                        <span class="text-[10px] text-gray-400">${record.time}</span>
+                    </div>
+                `;
+                historyListDiv.appendChild(div);
+            });
+        }
+
+        // --- 启动应用 ---
+        window.onload = initData;
+    </script>
+</body>
 </html>
