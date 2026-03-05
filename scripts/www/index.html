@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>艺联清单 V9.1</title>
+    <title>艺联清单 V12.0 (数据看板详情版)</title>
     
-    <!-- 【核心新增】：强制浏览器最高优先级预加载 Logo，防止闪屏时图片加载不出来 -->
+    <!-- 强制浏览器最高优先级预加载 Logo -->
     <link rel="preload" href="./logo.png" as="image">
 
     <!-- 引入 Tailwind CSS -->
@@ -16,96 +16,196 @@
         .day-btn { transition: all 0.2s ease; }
         ::-webkit-scrollbar { display: none; }
         
-        /* 闪屏元素的进场动画 */
+        /* 闪屏进场动画 */
         @keyframes fadeUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .animate-fade-up {
-            animation: fadeUp 0.8s ease-out forwards;
-        }
+        .animate-fade-up { animation: fadeUp 0.8s ease-out forwards; }
         .delay-100 { animation-delay: 150ms; }
         .delay-200 { animation-delay: 300ms; }
+        
+        /* 日历输入框样式 */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+        }
+
+        /* 详情页滑入动画 */
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        .slide-in { animation: slideInRight 0.3s forwards cubic-bezier(0.25, 0.8, 0.25, 1); }
+        
+        /* 环形进度条动画 */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.8s ease-in-out;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
     </style>
 </head>
 <body class="bg-[#f5f7f5] font-sans min-h-screen text-gray-800 pb-10">
 
-    <!-- 品牌闪屏页面 (Splash Screen) -->
+    <!-- 品牌闪屏页面 -->
     <div id="splash-screen" class="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center transition-opacity duration-700 ease-in-out">
-        <!-- Logo 图片（加入了预加载机制） -->
         <img src="img/logo.jpg" alt="艺数清单 Logo" class="w-40 h-40 mb-8 object-contain animate-fade-up" onerror="this.style.display='none';">
-        
-        <!-- Slogan 文字 -->
-        <h1 class="text-4xl font-bold text-[#00a651] mb-5 tracking-[0.2em] pl-2 animate-fade-up delay-100 opacity-0">艺数清单</h1>
+        <h1 class="text-4xl font-bold text-[#00a651] mb-5 tracking-[0.2em] pl-2 animate-fade-up delay-100 opacity-0">艺联清单</h1>
         <h2 class="text-2xl font-medium text-[#00a651] tracking-[0.1em] animate-fade-up delay-200 opacity-0">您的时间管家</h2>
     </div>
 
-    <!-- 主界面内容 -->
-    <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg sm:rounded-2xl sm:min-h-[800px] sm:mt-6 sm:overflow-hidden relative">
+    <!-- 手机外壳容器 -->
+    <div class="max-w-md mx-auto bg-[#f5f7f5] min-h-screen shadow-lg sm:rounded-2xl sm:min-h-[800px] sm:mt-6 overflow-hidden relative">
         
-        <!-- 顶部导航条 -->
-        <div class="bg-[#eaf5ec] p-4 flex justify-between items-center sticky top-0 z-20">
-            <h1 class="text-xl font-bold text-gray-800">艺联清单</h1>
-            <div class="flex items-center gap-3">
-                <div class="text-sm text-[#4caf50] font-semibold bg-[#dcfce7] px-3 py-1 rounded-full">当前：<span id="header-date"></span></div>
-                <button onclick="clearAllData()" class="text-xl text-gray-400 hover:text-red-500 transition-colors" title="清空所有测试数据">⚙️</button>
+        <!-- ================= 主视图 (Dashboard) ================= -->
+        <div id="main-view" class="block">
+            <!-- 顶部导航条 -->
+            <div class="bg-[#eaf5ec] p-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
+                <h1 class="text-xl font-bold text-gray-800">艺联清单</h1>
+                <div class="flex items-center gap-3">
+                    <div class="text-sm text-[#4caf50] font-semibold bg-[#dcfce7] px-3 py-1 rounded-full">当前：<span id="header-date"></span></div>
+                    <button onclick="clearAllData()" class="text-xl text-gray-400 hover:text-red-500 transition-colors" title="清空所有数据">⚙️</button>
+                </div>
+            </div>
+
+            <div class="p-5 space-y-6">
+                <!-- 模块 1：创建习惯 -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div class="mb-5 flex gap-2">
+                        <input type="text" id="task-name" class="flex-1 bg-[#f8faf8] border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4caf50]" placeholder="例如早起、背单词等">
+                    </div>
+                    <div class="mb-5">
+                        <h3 class="text-sm font-bold text-gray-700 mb-3">习惯周期</h3>
+                        <div class="flex gap-2 mb-3">
+                            <span class="bg-[#eaf5ec] text-[#2e7d32] px-4 py-1.5 rounded-md text-sm font-bold cursor-pointer">按周</span>
+                            <span class="text-gray-400 px-4 py-1.5 rounded-md text-sm cursor-pointer">固定/其他暂不演示</span>
+                        </div>
+                        <div class="flex justify-between mt-4" id="week-days-container"></div>
+                    </div>
+                    <div class="mb-5 flex justify-between items-center border-t border-gray-50 pt-4">
+                        <h3 class="text-sm font-bold text-gray-700">打卡开始日期</h3>
+                        <input type="date" id="start-date" class="text-sm text-gray-600 border-none outline-none bg-transparent text-right">
+                    </div>
+                    <button onclick="createTask()" class="w-full bg-[#4caf50] hover:bg-[#43a047] text-white font-bold py-3 px-4 rounded-full shadow-md transition-colors">
+                        保存习惯，开始执行
+                    </button>
+                </div>
+
+                <!-- 模块 2：待办区 -->
+                <div class="bg-[#fcfdfc] p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-bold text-gray-800" id="view-date-title">今日待办</h2>
+                        <input type="date" id="task-date-picker" onchange="syncDate(this.value)" class="bg-[#eaf5ec] text-[#2e7d32] px-3 py-1.5 rounded-full text-sm font-bold cursor-pointer hover:bg-[#c8e6c9] transition-colors shadow-sm border-none outline-none text-center">
+                    </div>
+                    <div id="today-tasks-list" class="space-y-3"></div>
+                </div>
+
+                <!-- 模块 3：打卡记录墙 -->
+                <div class="bg-[#fcfdfc] p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-bold text-gray-800" id="history-date-title">今日记录墙</h2>
+                        <input type="date" id="record-date-picker" onchange="syncDate(this.value)" class="bg-[#eaf5ec] text-[#2e7d32] px-3 py-1.5 rounded-full text-sm font-bold cursor-pointer hover:bg-[#c8e6c9] transition-colors shadow-sm border-none outline-none text-center">
+                    </div>
+                    <div id="history-list" class="grid grid-cols-2 gap-3"></div>
+                </div>
             </div>
         </div>
 
-        <div class="p-5 space-y-6">
-            
-            <!-- 模块 1：创建习惯 -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                <div class="mb-5 flex gap-2">
-                    <input type="text" id="task-name" class="flex-1 bg-[#f8faf8] border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4caf50]" placeholder="例如早起、背单词等">
+        <!-- ================= 任务详情视图 (Detail View) ================= -->
+        <div id="detail-view" class="hidden absolute inset-0 bg-[#f5f7f5] z-30 min-h-screen flex-col">
+            <!-- 详情页头部 -->
+            <div class="bg-white p-4 flex justify-between items-center sticky top-0 shadow-sm z-40">
+                <button onclick="closeDetailView()" class="text-2xl text-gray-500 hover:text-gray-800 px-2 py-1">‹</button>
+                <div class="flex flex-col items-center">
+                    <div class="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-xl mb-1 shadow-inner">🎯</div>
+                    <span class="font-bold text-gray-800 text-lg" id="detail-task-name">加载中...</span>
                 </div>
-                <div class="mb-5">
-                    <h3 class="text-sm font-bold text-gray-700 mb-3">习惯周期</h3>
-                    <div class="flex gap-2 mb-3">
-                        <span class="bg-[#eaf5ec] text-[#2e7d32] px-4 py-1.5 rounded-md text-sm font-bold cursor-pointer">按周</span>
-                        <span class="text-gray-400 px-4 py-1.5 rounded-md text-sm cursor-pointer">固定/其他暂不演示</span>
-                    </div>
-                    <div class="flex justify-between mt-4" id="week-days-container"></div>
-                </div>
-                <div class="mb-5 flex justify-between items-center border-t border-gray-50 pt-4">
-                    <h3 class="text-sm font-bold text-gray-700">打卡开始日期</h3>
-                    <input type="date" id="start-date" class="text-sm text-gray-600 border-none outline-none bg-transparent text-right">
-                </div>
-                <button onclick="createTask()" class="w-full bg-[#4caf50] hover:bg-[#43a047] text-white font-bold py-3 px-4 rounded-full shadow-md transition-colors">
-                    保存习惯，开始执行
-                </button>
+                <button onclick="editDetailTaskName()" class="text-sm font-bold text-[#4caf50] px-3 py-1 bg-[#eaf5ec] rounded-full hover:bg-[#c8e6c9]">编辑</button>
             </div>
 
-            <!-- 模块 2：待办区 -->
-            <div class="bg-[#fcfdfc] p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div class="flex items-center justify-between mb-4">
-                    <button onclick="changeDate(-1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">◀</button>
-                    <div class="text-center">
-                        <h2 class="text-lg font-bold text-gray-800" id="view-date-title">今日待办</h2>
-                        <span class="text-xs text-gray-400" id="view-date-subtitle"></span>
+            <!-- 详情页内容滚动区 -->
+            <div class="flex-1 overflow-y-auto p-5 space-y-5 pb-20">
+                
+                <!-- 1. 月度进度模块 -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <h2 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span class="text-[#4caf50]">🏷️</span> <span id="month-progress-title">月打卡进度</span>
+                    </h2>
+                    
+                    <!-- 环形进度条 -->
+                    <div class="flex justify-center mb-6">
+                        <div class="relative w-32 h-32">
+                            <!-- 底部灰色圆环 -->
+                            <svg class="w-full h-full" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" fill="none" stroke="#eaf5ec" stroke-width="8"></circle>
+                                <!-- 绿色进度圆环 -->
+                                <circle id="progress-circle" class="progress-ring__circle" cx="50" cy="50" r="40" fill="none" stroke="#4caf50" stroke-width="8" stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round"></circle>
+                            </svg>
+                            <!-- 中心百分比 -->
+                            <div class="absolute inset-0 flex items-center justify-center flex-col">
+                                <span class="text-2xl font-bold text-[#4caf50]" id="detail-percent">0%</span>
+                            </div>
+                        </div>
                     </div>
-                    <button onclick="changeDate(1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">▶</button>
-                </div>
-                <div id="today-tasks-list" class="space-y-3"></div>
-            </div>
 
-            <!-- 模块 3：打卡记录墙 -->
-            <div class="bg-[#fcfdfc] p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div class="flex items-center justify-between mb-4">
-                    <button onclick="changeHistoryDate(-1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">◀</button>
-                    <div class="text-center">
-                        <h2 class="text-lg font-bold text-gray-800" id="history-date-title">今日记录墙</h2>
-                        <span class="text-xs text-gray-400" id="history-date-subtitle"></span>
+                    <!-- 数据统计三栏 -->
+                    <div class="grid grid-cols-3 gap-2 text-center divide-x divide-gray-100 border-t border-gray-50 pt-4">
+                        <div>
+                            <p class="text-2xl font-bold text-gray-700" id="detail-planned">0</p>
+                            <p class="text-xs text-gray-400 mt-1">计划打卡</p>
+                        </div>
+                        <div>
+                            <p class="text-2xl font-bold text-[#4caf50]" id="detail-actual">0</p>
+                            <p class="text-xs text-gray-400 mt-1">实际打卡</p>
+                        </div>
+                        <div>
+                            <p class="text-2xl font-bold text-red-400" id="detail-missed">0</p>
+                            <p class="text-xs text-gray-400 mt-1">错过打卡</p>
+                        </div>
                     </div>
-                    <button onclick="changeHistoryDate(1)" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:text-[#4caf50] hover:bg-green-50">▶</button>
                 </div>
-                <div id="history-list" class="grid grid-cols-2 gap-3"></div>
+
+                <!-- 2. 打卡日志模块 -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <h2 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span class="text-[#4caf50]">🗂️</span> 打卡日志
+                    </h2>
+                    <div id="detail-records-list" class="space-y-3 max-h-64 overflow-y-auto pr-2">
+                        <!-- 专属打卡记录渲染在这里 -->
+                    </div>
+                </div>
+
+                <!-- 3. 总进度模块 -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <h2 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span class="text-[#4caf50]">📊</span> 打卡总进度
+                    </h2>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-gray-500">开始日期:</span>
+                            <span class="font-bold text-gray-700" id="detail-start-date">--</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-gray-500">距今天数:</span>
+                            <span class="font-bold text-gray-700"><span id="detail-days-since">0</span> 天</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-gray-500">实际打卡天数:</span>
+                            <span class="font-bold text-[#4caf50]"><span id="detail-total-actual">0</span> 天</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-gray-500">最长连续天数:</span>
+                            <span class="font-bold text-orange-500"><span id="detail-longest-streak">0</span> 天</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 打卡弹窗 -->
-    <div id="checkin-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden flex justify-center items-end sm:items-center z-50">
+    <!-- 打卡弹窗 (公用) -->
+    <div id="checkin-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden flex justify-center items-end sm:items-center z-[100]">
         <div class="bg-white p-6 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-96 transform transition-transform">
             <h3 class="text-xl font-bold mb-4 text-center text-gray-800" id="modal-title">进行打卡</h3>
             <input type="hidden" id="current-task-id">
@@ -143,18 +243,16 @@
         let tasks =[];
         let records =[];
         
-        let viewDateObj = new Date();        
-        let historyDateObj = new Date();     
+        let globalViewDate = new Date();        
+        let currentDetailTaskId = null; // 当前正在查看详情的任务ID
 
         function getStrFromDate(d) {
             return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
         }
 
-        // --- 0. 异步数据库初始化与闪屏控制 ---
+        // --- 0. 异步数据库初始化 ---
         async function initData() {
-            // 1.7 秒的强制倒计时，保证闪屏停留时间
-            const minSplashTime = new Promise(resolve => setTimeout(resolve, 1700));
-            
+            const minSplashTime = new Promise(resolve => setTimeout(resolve, 2500));
             const loadData = (async () => {
                 let lfTasks = await localforage.getItem('habitTasks');
                 let lfRecords = await localforage.getItem('habitRecords');
@@ -182,21 +280,16 @@
             try {
                 await Promise.all([loadData, minSplashTime]);
                 initUI();
-
-                // 优雅地淡出并移除闪屏
                 const splash = document.getElementById('splash-screen');
                 splash.style.opacity = '0'; 
-                setTimeout(() => {
-                    splash.style.display = 'none'; 
-                }, 700); 
-
+                setTimeout(() => { splash.style.display = 'none'; }, 700); 
             } catch (err) {
                 console.error('数据库初始化失败:', err);
                 alert('数据库加载失败，请刷新重试！');
             }
         }
 
-        // --- 后续逻辑完全保持不变 ---
+        // --- 1. 初始化页面 UI ---
         function initUI() {
             document.getElementById('header-date').innerText = new Date().toLocaleDateString('zh-CN', {month: 'long', day: 'numeric'});
             document.getElementById('start-date').value = getStrFromDate(new Date());
@@ -212,6 +305,15 @@
                 container.appendChild(btn);
             });
 
+            globalViewDate = new Date();
+            renderTasks();
+            renderRecords();
+        }
+
+        function syncDate(val) {
+            if (!val) return;
+            const [y, m, d] = val.split('-');
+            globalViewDate = new Date(y, m - 1, d);
             renderTasks();
             renderRecords();
         }
@@ -250,36 +352,185 @@
             renderTasks();
         }
 
-        function changeDate(offset) {
-            viewDateObj.setDate(viewDateObj.getDate() + offset);
-            renderTasks();
+        // ================= 【新增】详情页逻辑 =================
+        function openTaskDetail(taskId) {
+            currentDetailTaskId = taskId;
+            const task = tasks.find(t => t.id === taskId);
+            if(!task) return;
+
+            // 1. 切换视图
+            document.getElementById('main-view').classList.replace('block', 'hidden');
+            const detailView = document.getElementById('detail-view');
+            detailView.classList.replace('hidden', 'flex');
+            detailView.classList.add('slide-in');
+
+            // 2. 渲染头部
+            document.getElementById('detail-task-name').textContent = task.name;
+
+            // 3. 计算本月进度数据
+            const now = new Date();
+            const todayStr = getStrFromDate(now);
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            
+            document.getElementById('month-progress-title').textContent = `月打卡进度 - ${currentMonth + 1}月`;
+
+            let plannedThisMonth = 0;
+            let actualThisMonth = 0;
+            let missedThisMonth = 0;
+
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            for(let i=1; i<=daysInMonth; i++) {
+                const d = new Date(currentYear, currentMonth, i);
+                const dStr = getStrFromDate(d);
+                const dayOfWeek = d.getDay();
+
+                // 判断是否是该任务需要打卡的日子，并且已经到了开始日期
+                if (dStr >= task.startDate && task.cycleDays.includes(dayOfWeek)) {
+                    plannedThisMonth++;
+                    const hasRecord = records.some(r => r.taskId === task.id && r.date === dStr);
+                    if (hasRecord) {
+                        actualThisMonth++;
+                    } else if (dStr < todayStr) {
+                        missedThisMonth++; // 只有过去的日子没打卡才算“错过”
+                    }
+                }
+            }
+
+            // 渲染数据
+            document.getElementById('detail-planned').textContent = plannedThisMonth;
+            document.getElementById('detail-actual').textContent = actualThisMonth;
+            document.getElementById('detail-missed').textContent = missedThisMonth;
+
+            // 环形进度条动画
+            const percent = plannedThisMonth === 0 ? 0 : Math.round((actualThisMonth / plannedThisMonth) * 100);
+            document.getElementById('detail-percent').textContent = `${percent}%`;
+            const circle = document.getElementById('progress-circle');
+            const circumference = 251.2; // 2 * pi * 40
+            const offset = circumference - (percent / 100) * circumference;
+            setTimeout(() => {
+                circle.style.strokeDashoffset = offset;
+            }, 100);
+
+            // 4. 渲染打卡日志 (专属列表)
+            const logContainer = document.getElementById('detail-records-list');
+            logContainer.innerHTML = '';
+            const taskRecords = records.filter(r => r.taskId === task.id);
+            
+            if (taskRecords.length === 0) {
+                logContainer.innerHTML = `
+                    <div class="bg-gray-50 rounded-xl p-4 text-center text-gray-400 text-sm border border-dashed border-gray-200">
+                        📭 暂无打卡日志
+                    </div>
+                `;
+            } else {
+                taskRecords.forEach(r => {
+                    const rDiv = document.createElement('div');
+                    rDiv.className = 'flex items-center justify-between p-3 bg-[#f8faf8] rounded-lg border border-gray-100';
+                    let imgHtml = r.image ? `<img src="${r.image}" class="w-10 h-10 object-cover rounded-md border border-gray-200">` : `<div class="w-10 h-10 bg-[#eaf5ec] rounded-md flex items-center justify-center text-xl">📝</div>`;
+                    let noteHtml = r.note ? `<p class="text-xs text-gray-500 truncate w-32">${r.note}</p>` : '';
+                    rDiv.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            ${imgHtml}
+                            <div>
+                                <p class="font-bold text-sm text-gray-800">${r.date}</p>
+                                ${noteHtml}
+                            </div>
+                        </div>
+                        <span class="text-xs text-gray-400 bg-white px-2 py-1 rounded shadow-sm">${r.time}</span>
+                    `;
+                    logContainer.appendChild(rDiv);
+                });
+            }
+
+            // 5. 渲染总进度
+            const startD = new Date(task.startDate);
+            const daysSince = Math.floor((now - startD) / (1000 * 60 * 60 * 24));
+            
+            // 计算最长连续天数
+            let scheduledDates =[];
+            let tempD = new Date(task.startDate);
+            while(getStrFromDate(tempD) <= todayStr) {
+                if(task.cycleDays.includes(tempD.getDay())) {
+                    scheduledDates.push(getStrFromDate(tempD));
+                }
+                tempD.setDate(tempD.getDate() + 1);
+            }
+            scheduledDates.reverse(); // 从近到远
+
+            let maxStreak = 0;
+            let currentStreak = 0;
+            for(let dateStr of scheduledDates) {
+                const hasRecord = records.some(r => r.taskId === task.id && r.date === dateStr);
+                if(hasRecord) {
+                    currentStreak++;
+                    if(currentStreak > maxStreak) maxStreak = currentStreak;
+                } else {
+                    currentStreak = 0; // 一旦断签，归零
+                }
+            }
+
+            document.getElementById('detail-start-date').textContent = new Date(task.startDate).toLocaleDateString('zh-CN');
+            document.getElementById('detail-days-since').textContent = daysSince >= 0 ? daysSince : 0;
+            document.getElementById('detail-total-actual').textContent = taskRecords.length;
+            document.getElementById('detail-longest-streak').textContent = maxStreak;
         }
 
-        function changeHistoryDate(offset) {
-            historyDateObj.setDate(historyDateObj.getDate() + offset);
-            renderRecords();
+        function closeDetailView() {
+            const detailView = document.getElementById('detail-view');
+            detailView.classList.remove('slide-in');
+            detailView.classList.replace('flex', 'hidden');
+            document.getElementById('main-view').classList.replace('hidden', 'block');
+            currentDetailTaskId = null;
+            // 回退时把圆环动画复位，防止下次打开没动画
+            document.getElementById('progress-circle').style.strokeDashoffset = 251.2;
         }
+
+        // 详情页内的编辑名字功能
+        function editDetailTaskName() {
+            if(!currentDetailTaskId) return;
+            const task = tasks.find(t => t.id === currentDetailTaskId);
+            const newName = prompt('✏️ 请输入新的习惯名称：', task.name);
+            
+            if (newName !== null && newName.trim() !== '') {
+                task.name = newName.trim();
+                records.forEach(r => {
+                    if (r.taskId === task.id) r.taskName = task.name;
+                });
+
+                Promise.all([
+                    localforage.setItem('habitTasks', tasks),
+                    localforage.setItem('habitRecords', records)
+                ]).then(() => {
+                    // 同步更新详情页标题和主页列表
+                    document.getElementById('detail-task-name').textContent = task.name;
+                    renderTasks();
+                    renderRecords();
+                });
+            }
+        }
+        // ======================================================
 
         function renderTasks() {
             const listDiv = document.getElementById('today-tasks-list');
             listDiv.innerHTML = '';
 
             const todayStr = getStrFromDate(new Date());
-            const viewDateStr = getStrFromDate(viewDateObj);
-            const viewDayOfWeek = viewDateObj.getDay();
+            const viewDateStr = getStrFromDate(globalViewDate);
+            const viewDayOfWeek = globalViewDate.getDay();
+
+            document.getElementById('task-date-picker').value = viewDateStr;
 
             const titleEl = document.getElementById('view-date-title');
-            const subTitleEl = document.getElementById('view-date-subtitle');
-            subTitleEl.textContent = viewDateStr;
-            
             const yesterdayDate = new Date();
             yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            
             if (viewDateStr === todayStr) {
                 titleEl.textContent = '今日待办';
             } else if (viewDateStr === getStrFromDate(yesterdayDate)) {
                 titleEl.textContent = '昨日待办';
             } else {
-                titleEl.textContent = `${viewDateObj.getMonth()+1}月${viewDateObj.getDate()}日 待办`;
+                titleEl.textContent = `${globalViewDate.getMonth()+1}月${globalViewDate.getDate()}日 待办`;
             }
 
             const todaysTasks = tasks.filter(task => {
@@ -314,16 +565,18 @@
 
                 const div = document.createElement('div');
                 div.className = 'relative overflow-hidden rounded-xl bg-red-500'; 
+                
+                // V12.0: 左侧区域绑定 openTaskDetail 事件，取消原有的 inline edit
                 div.innerHTML = `
                     <div class="absolute inset-y-0 right-0 w-24 flex items-center justify-end pr-4 text-white font-bold cursor-pointer" onclick="deleteTask('${task.id}')">
                         删除 🗑️
                     </div>
                     <div class="task-card relative bg-white p-4 flex justify-between items-center rounded-xl shadow-sm border border-gray-100 z-10 transition-transform duration-300">
-                        <div class="flex items-center gap-3 pointer-events-none">
-                            <div class="w-10 h-10 bg-[#f1f8e9] rounded-full flex items-center justify-center text-xl">🎯</div>
+                        <div class="flex items-center gap-3 select-none flex-1 cursor-pointer active:scale-[0.98] transition-transform" onclick="openTaskDetail('${task.id}')">
+                            <div class="w-10 h-10 bg-[#f1f8e9] rounded-full flex items-center justify-center text-xl pointer-events-none">🎯</div>
                             <div>
                                 <p class="font-bold text-gray-800 text-base">${task.name}</p>
-                                <p class="text-xs text-gray-400 mt-0.5">⬅️ 左滑可删除该习惯</p>
+                                <p class="text-[11px] text-gray-400 mt-0.5">点击查看进度，左滑删除 ⬅️</p>
                             </div>
                         </div>
                         ${buttonHtml}
@@ -401,7 +654,7 @@
 
         function openModal(taskId, taskName) {
             document.getElementById('current-task-id').value = taskId;
-            const isPast = getStrFromDate(viewDateObj) < getStrFromDate(new Date());
+            const isPast = getStrFromDate(globalViewDate) < getStrFromDate(new Date());
             document.getElementById('modal-title').textContent = isPast ? `补卡: ${taskName}` : `打卡: ${taskName}`;
             
             document.getElementById('photo-upload').value = ''; 
@@ -491,7 +744,7 @@
 
             const saveRecord = (imageBase64) => {
                 const task = tasks.find(t => t.id === taskId);
-                const checkInDateStr = getStrFromDate(viewDateObj);
+                const checkInDateStr = getStrFromDate(globalViewDate);
                 
                 const newRecord = {
                     id: 'rec_' + Date.now(),
@@ -507,7 +760,6 @@
                 
                 localforage.setItem('habitRecords', records).then(() => {
                     closeModal();
-                    historyDateObj = new Date(viewDateObj);
                     renderTasks(); 
                     renderRecords();
                 }).catch((error) => {
@@ -548,20 +800,20 @@
             historyListDiv.innerHTML = '';
 
             const todayStr = getStrFromDate(new Date());
-            const viewHistoryStr = getStrFromDate(historyDateObj);
+            const viewHistoryStr = getStrFromDate(globalViewDate);
+
+            document.getElementById('record-date-picker').value = viewHistoryStr;
 
             const titleEl = document.getElementById('history-date-title');
-            const subTitleEl = document.getElementById('history-date-subtitle');
-            subTitleEl.textContent = viewHistoryStr;
-            
             const yesterdayDate = new Date();
             yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            
             if (viewHistoryStr === todayStr) {
                 titleEl.textContent = '今日记录墙';
             } else if (viewHistoryStr === getStrFromDate(yesterdayDate)) {
                 titleEl.textContent = '昨日记录墙';
             } else {
-                titleEl.textContent = `${historyDateObj.getMonth()+1}月${historyDateObj.getDate()}日 记录`;
+                titleEl.textContent = `${globalViewDate.getMonth()+1}月${globalViewDate.getDate()}日 记录`;
             }
 
             const dailyRecords = records.filter(r => r.date === viewHistoryStr);
