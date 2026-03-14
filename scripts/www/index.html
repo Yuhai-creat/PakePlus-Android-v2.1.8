@@ -1,11 +1,1063 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>艺联清单 V21.1</title>
+    
+    <link rel="preload" href="./logo.png" as="image">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <!-- 引入顶级图表库 Apache ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up { animation: fadeUp 0.8s ease-out forwards; }
+        .delay-100 { animation-delay: 150ms; }
+        .delay-200 { animation-delay: 300ms; }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        .slide-in { animation: slideInRight 0.3s forwards cubic-bezier(0.25, 0.8, 0.25, 1); }
+        
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.8s ease-in-out;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+    </style>
+</head>
+<body class="bg-[#eaf5ec] font-sans min-h-screen text-gray-800 sm:py-6">
+
+    <!-- 闪屏 -->
+    <div id="splash-screen" class="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center transition-opacity duration-700 ease-in-out">
+        <img src="img/logo.jpg" alt="Logo" class="w-40 h-40 mb-8 object-contain animate-fade-up" onerror="this.style.display='none';">
+        <h1 class="text-4xl font-bold text-[#00a651] mb-5 tracking-[0.2em] pl-2 animate-fade-up delay-100 opacity-0">艺联清单</h1>
+        <h2 class="text-2xl font-medium text-[#00a651] tracking-[0.1em] animate-fade-up delay-200 opacity-0">您的时间管家</h2>
+    </div>
+
+    <!-- 手机壳容器 -->
+    <div class="max-w-md mx-auto bg-[#f5f7f5] min-h-screen shadow-xl sm:rounded-3xl sm:min-h-[850px] overflow-hidden relative">
+        
+        <!-- ================= 侧边导航栏 ================= -->
+        <div id="sidebar-overlay" class="absolute inset-0 bg-black/40 hidden z-[130] opacity-0 transition-opacity duration-300" onclick="closeSidebar()"></div>
+        
+        <div id="sidebar-panel" class="absolute top-0 left-0 bottom-0 w-[80%] max-w-[280px] bg-[#f4f9f4] z-[140] transform -translate-x-full transition-transform duration-300 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.15)]">
+            
+            <div class="p-5 pt-8 relative z-20 bg-[#f4f9f4]">
+                <div class="flex items-center bg-white rounded-xl p-2.5 px-4 border border-[#4caf50] shadow-sm">
+                    <span class="text-gray-400 mr-2 text-sm">🔍</span>
+                    <input type="text" id="sidebar-search-input" oninput="handleSearch()" class="flex-1 bg-transparent text-[15px] focus:outline-none text-gray-800 placeholder-gray-400" placeholder="搜索清单">
+                </div>
+                <div id="search-results-container" class="absolute left-5 right-5 top-[75px] bg-white rounded-xl shadow-lg border border-gray-100 hidden flex-col max-h-60 overflow-y-auto z-30 divide-y divide-gray-50">
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-6 pb-10 space-y-7">
+                <div>
+                    <p class="text-[13px] text-gray-400 font-bold mb-3 tracking-wider">展示列表</p>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors">
+                            <span class="text-xl w-6 text-center block">🗂️</span> <span class="font-medium text-[16px]">清单列表</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors">
+                            <span class="text-xl w-6 text-center block">📋</span> <span class="font-medium text-[16px]">待办列表</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors">
+                            <span class="text-xl w-6 text-center block">⊞</span> <span class="font-medium text-[16px]">四象限视图</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors">
+                            <span class="text-xl w-6 text-center block">📚</span> <span class="font-medium text-[16px]">分类视图</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[13px] text-gray-400 font-bold mb-3 tracking-wider">数据</p>
+                    <div class="space-y-4">
+                        <div onclick="openStatsView()" class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors">
+                            <span class="text-xl w-6 text-center block">📊</span> <span class="font-medium text-[16px]">清单统计</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[13px] text-gray-400 font-bold mb-3 tracking-wider">设置</p>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors">
+                            <span class="text-xl w-6 text-center block">📁</span> <span class="font-medium text-[16px]">分类管理</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors">
+                            <span class="text-xl w-6 text-center block">🏷️</span> <span class="font-medium text-[16px]">标签管理</span>
+                        </div>
+                        <div onclick="openAuthorView()" class="flex items-center gap-3 text-gray-700 cursor-pointer hover:text-[#4caf50] transition-colors decoration-transparent">
+                            <span class="text-xl w-6 text-center block">👨‍💻</span> <span class="font-medium text-[16px]">作者简介</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 主视图 ================= -->
+        <div id="main-view" class="block w-full h-full relative">
+            <div class="bg-[#eaf5ec] pt-4 pb-2 sticky top-0 z-20 flex flex-col shadow-[0_4px_10px_rgba(0,0,0,0.02)]">
+                <div class="flex justify-between items-center px-5 mb-3">
+                    <div class="flex items-center">
+                        <h1 class="text-xl font-bold text-gray-800">艺联清单</h1>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div onclick="syncDate(getStrFromDate(new Date()))" class="text-sm text-[#4caf50] font-semibold bg-[#dcfce7] px-3 py-1.5 rounded-full cursor-pointer active:scale-95 transition-transform shadow-sm" title="点击回到今天">当前：<span id="header-date"></span></div>
+                        <button onclick="openSidebar()" class="text-3xl text-gray-700 font-light leading-none -mt-1 active:scale-90 transition-transform">≡</button>
+                    </div>
+                </div>
+                <div id="horizontal-calendar" class="flex overflow-x-auto no-scrollbar items-center px-3 space-x-1 pb-1"></div>
+            </div>
+
+            <div class="p-4 space-y-6 pb-28">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-50">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 pl-1">今日待办</h2>
+                    <div id="today-tasks-list" class="space-y-3"></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-50">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 pl-1">今日打卡日志</h2>
+                    <div id="history-list" class="grid grid-cols-2 gap-3"></div>
+                </div>
+            </div>
+
+            <div class="fixed bottom-6 right-0 left-0 pointer-events-none z-40">
+                <div class="max-w-md mx-auto relative h-full">
+                    <button onclick="openCreateView()" class="absolute bottom-0 right-6 w-16 h-16 bg-[#4caf50] text-white rounded-full shadow-[0_8px_20px_rgba(76,175,80,0.4)] text-5xl flex items-center justify-center hover:bg-[#43a047] active:scale-90 transition-transform pb-2 pointer-events-auto">+</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 数据统计全景视图 (Stats View) ================= -->
+        <div id="stats-view" class="hidden absolute inset-0 bg-[#f5f7f5] z-50 min-h-screen flex-col slide-in overflow-x-hidden">
+            <div class="bg-[#f5f7f5] pt-5 pb-2 px-5 sticky top-0 z-40">
+                <div class="flex items-center mb-4">
+                    <button onclick="closeStatsView()" class="text-3xl text-gray-600 hover:text-gray-800 leading-none pb-1 pr-4">‹</button>
+                    <div class="flex-1 flex justify-around text-[15px] font-bold text-gray-400">
+                        <div id="tab-day" onclick="switchStatsTab('day')" class="pb-1 border-b-2 border-transparent cursor-pointer transition-colors">日统计</div>
+                        <div id="tab-week" onclick="switchStatsTab('week')" class="pb-1 border-b-2 border-[#4caf50] text-[#4caf50] cursor-pointer transition-colors">周统计</div>
+                        <div id="tab-month" onclick="switchStatsTab('month')" class="pb-1 border-b-2 border-transparent cursor-pointer transition-colors">月统计</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-4 pb-20 space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm p-4 flex gap-3 items-start border border-gray-50 mt-2">
+                    <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-xl shrink-0">💡</div>
+                    <div class="flex-1">
+                        <p class="text-[13px] text-gray-700 font-medium leading-relaxed mb-3">以下为您在选定时间范围内的真实打卡数据统计，坚持打卡解锁更多成就！</p>
+                        <div class="flex justify-end">
+                            <button class="bg-[#00a651] text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-sm">数据已同步</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm text-gray-400 font-bold mb-3 pl-1">数据总览</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
+                            <p class="text-sm font-bold text-gray-700 mb-2">成功打卡</p>
+                            <p class="text-2xl font-bold text-gray-800"><span id="stats-success">0</span><span class="text-gray-300 text-lg font-normal ml-1">个</span></p>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
+                            <p class="text-sm font-bold text-gray-700 mb-2">失败打卡</p>
+                            <p class="text-2xl font-bold text-gray-800"><span id="stats-failed">0</span><span class="text-gray-300 text-lg font-normal ml-1">个</span></p>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
+                            <p class="text-sm font-bold text-gray-700 mb-2">未打卡</p>
+                            <p class="text-2xl font-bold text-gray-800"><span id="stats-notyet">0</span><span class="text-gray-300 text-lg font-normal ml-1">个</span></p>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
+                            <p class="text-sm font-bold text-gray-700 mb-2">打卡率</p>
+                            <p class="text-2xl font-bold text-gray-800"><span id="stats-rate">0</span><span class="text-gray-300 text-lg font-normal ml-1">%</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <h3 class="text-sm text-gray-400 font-bold">打卡趋势</h3>
+                        <div class="flex bg-gray-100 rounded-lg p-1 text-xs font-bold text-gray-500">
+                            <button id="btn-trend-line" onclick="switchTrendType('line')" class="px-3 py-1 rounded bg-white text-gray-800 shadow-sm transition-all">折线图</button>
+                            <button id="btn-trend-bar" onclick="switchTrendType('bar')" class="px-3 py-1 rounded hover:text-gray-800 transition-all">柱状图</button>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-50 p-3 pt-5">
+                        <div id="chart-trend" class="w-full h-56"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <h3 class="text-sm text-gray-400 font-bold">打卡分布</h3>
+                        <span class="text-xs text-gray-600">按分类 ▾</span>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-50 p-4 pb-6">
+                        <div id="chart-dist" class="w-full h-64"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm text-gray-400 font-bold mb-3 pl-1">自律指数</h3>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-50 p-4">
+                        <div id="chart-radar" class="w-full h-64"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 团队/作者简介视图 ================= -->
+        <div id="author-view" class="hidden absolute inset-0 bg-[#f5f7f5] z-50 min-h-screen flex-col slide-in">
+            <div class="bg-[#f5f7f5] p-5 flex justify-between items-center sticky top-0 z-40">
+                <button onclick="closeAuthorView()" class="text-3xl text-gray-600 hover:text-gray-800 px-2 leading-none pb-1 -ml-2">‹</button>
+                <h2 class="font-bold text-gray-800 text-lg">作者简介</h2>
+                <div class="w-8"></div> 
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-4 pt-2 pb-20">
+                <div class="text-center px-4 mb-6">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-[#eaf5ec] text-[#4caf50] rounded-full text-3xl mb-3 shadow-sm">👨‍💻</div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">艺联清单核心团队</h3>
+                    <p class="text-xs text-gray-500 leading-relaxed">致力于为您提供最纯粹、最高效的时间管理工具。以下是本项目的核心创作者们：</p>
+                </div>
+                
+                <div class="flex overflow-x-auto snap-x snap-mandatory gap-4 no-scrollbar -mx-4 px-4 pb-2">
+                    <!-- 作者 1 -->
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-6 flex flex-col items-center min-w-[270px] w-[80%] snap-center shrink-0">
+                        <img src="img/1.jpg" alt="头像" class="w-24 h-24 rounded-full border-4 border-white shadow-md mb-4 object-cover">
+                        <h4 class="font-bold text-gray-800 text-xl mb-1">艺数联动工作室</h4>
+                        <p class="text-xs text-[#4caf50] font-bold bg-[#eaf5ec] px-3 py-1 rounded-full mb-4">产品设计 / 统筹</p>
+                        <div class="bg-[#f8faf8] p-4 rounded-2xl text-[14px] text-gray-600 text-left w-full leading-relaxed flex-1 border border-gray-50">负责艺联清单的整体产品规划与UI/UX交互设计。热爱极简美学，希望用科技帮助大家更好地管理时间与生活。<br><br></div>
+                    </div>
+                    <!-- 作者 2 -->
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-6 flex flex-col items-center min-w-[270px] w-[80%] snap-center shrink-0">
+                        <img src="img/2.jpg" alt="头像" class="w-24 h-24 rounded-full border-4 border-white shadow-md mb-4 object-cover">
+                        <h4 class="font-bold text-gray-800 text-xl mb-1">与海</h4>
+                        <p class="text-xs text-orange-500 font-bold bg-orange-50 px-3 py-1 rounded-full mb-4">前端开发工程师</p>
+                        <div class="bg-[#f8faf8] p-4 rounded-2xl text-[14px] text-gray-600 text-left w-full leading-relaxed flex-1 border border-gray-50">主导了本项目的纯前端技术架构设计与核心代码编写，攻克了原生级别的流畅动画与本地大容量数据存储难题。<br><br></div>
+                    </div>
+                    <!-- 作者 3 -->
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-6 flex flex-col items-center min-w-[270px] w-[80%] snap-center shrink-0">
+                        <img src="img/3.jpg" alt="头像" class="w-24 h-24 rounded-full border-4 border-white shadow-md mb-4 object-cover">
+                        <h4 class="font-bold text-gray-800 text-xl mb-1">老五</h4>
+                        <p class="text-xs text-blue-500 font-bold bg-blue-50 px-3 py-1 rounded-full mb-4">视觉设计 / 架构</p>
+                        <div class="bg-[#f8faf8] p-4 rounded-2xl text-[14px] text-gray-600 text-left w-full leading-relaxed flex-1 border border-gray-50">负责底层数据模型设计与性能优化，以及品牌的视觉传播。致力于探索前沿技术，对习惯养成与数据分析有深入研究。<br><br></div>
+                    </div>
+                </div>
+
+                <!-- 【恢复】：底部提示语 -->
+                <div class="text-center text-xs text-gray-400 mt-4">
+                    <p class="flex items-center justify-center gap-1"><span>👈</span> 左右滑动查看团队成员 <span>👉</span></p>
+                </div>
+                
+            </div>
+        </div>
+
+        <!-- ================= 创建习惯视图 ================= -->
+        <div id="create-view" class="hidden absolute inset-0 bg-[#f5f7f5] z-50 min-h-screen flex-col slide-in">
+            <div class="bg-[#f5f7f5] p-5 flex justify-between items-center sticky top-0 z-40">
+                <button onclick="closeCreateView()" class="text-3xl text-gray-600 hover:text-gray-800 px-2 leading-none pb-1 -ml-2">‹</button>
+                <h2 class="font-bold text-gray-800 text-lg">创建习惯</h2>
+                <span class="text-xs font-bold text-[#4caf50] bg-[#eaf5ec] px-3 py-1.5 rounded-full cursor-pointer hover:bg-[#c8e6c9]">AI助手</span>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-6 flex flex-col items-center">
+                    <div id="create-icon-wrapper" onclick="openIconPicker('create')" class="relative cursor-pointer active:scale-95 transition-transform mb-6"></div>
+                    <div class="w-full flex items-center bg-[#f8faf8] rounded-xl p-3 px-4">
+                        <input type="text" id="create-task-name" class="flex-1 bg-transparent text-[15px] font-bold focus:outline-none text-gray-800 placeholder-gray-400" placeholder="例如早起、背单词等">
+                        <span class="bg-white text-[#4caf50] px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">习惯库</span>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-5 pt-6">
+                    <h3 class="text-sm font-bold text-gray-800 mb-4">习惯周期</h3>
+                    <div class="flex gap-2 mb-5 overflow-x-auto no-scrollbar pb-1">
+                        <span class="bg-[#eaf5ec] text-[#2e7d32] px-4 py-1.5 rounded-lg text-sm font-bold shrink-0 cursor-pointer">固定</span>
+                        <span class="bg-[#f8faf8] text-gray-500 px-4 py-1.5 rounded-lg text-sm shrink-0 cursor-pointer">按周</span>
+                        <span class="bg-[#f8faf8] text-gray-500 px-4 py-1.5 rounded-lg text-sm shrink-0 cursor-pointer">按月</span>
+                        <span class="bg-[#f8faf8] text-gray-500 px-4 py-1.5 rounded-lg text-sm shrink-0 cursor-pointer">每隔几天</span>
+                    </div>
+                    <div class="flex justify-between px-1" id="create-week-days-container"></div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-5 pt-6">
+                    <h3 class="text-sm font-bold text-gray-800 mb-4 flex items-center gap-1.5">
+                        习惯目标 
+                        <span class="text-gray-400 text-[10px] border border-gray-300 rounded-full w-[14px] h-[14px] flex items-center justify-center leading-none">?</span>
+                    </h3>
+                    <div class="flex gap-3">
+                        <button id="goal-once" onclick="setCreateGoal('once')" class="flex-1 py-3.5 rounded-xl border-2 border-transparent bg-[#eaf5ec] text-[#2e7d32] font-bold text-sm transition-colors">每天一次</button>
+                        <button id="goal-multiple" onclick="setCreateGoal('multiple')" class="flex-1 py-3.5 rounded-xl border-2 border-transparent bg-[#f8faf8] text-gray-500 font-bold text-sm transition-colors">每天多次</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-5 pt-6">
+                    <h3 class="text-sm font-bold text-gray-800 mb-4">提醒时间</h3>
+                    <button class="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-gray-300 rounded-2xl text-gray-400 text-3xl hover:bg-gray-50 font-light leading-none pb-1 transition-colors">+</button>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-50 p-5 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-gray-800">打卡开始日期</h3>
+                    <input type="date" id="create-start-date" class="text-sm text-gray-600 bg-transparent text-right font-bold cursor-pointer focus:outline-none">
+                </div>
+            </div>
+            
+            <div class="absolute bottom-0 left-0 right-0 p-5 bg-white border-t border-gray-100 pb-8 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] z-50">
+                <button onclick="saveNewTask()" class="w-full bg-[#4caf50] hover:bg-[#43a047] text-white font-bold py-3.5 rounded-full shadow-[0_4px_15px_rgba(76,175,80,0.3)] transition-transform active:scale-[0.98] text-[15px]">
+                    保存
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= 任务详情视图 ================= -->
+        <div id="detail-view" class="hidden absolute inset-0 bg-[#f5f7f5] z-30 min-h-screen flex-col">
+            <div class="bg-white p-4 flex justify-between items-center sticky top-0 shadow-sm z-40">
+                <button onclick="closeDetailView()" class="text-3xl text-gray-400 hover:text-gray-800 px-2 leading-none pb-1">‹</button>
+                <div class="flex flex-col items-center">
+                    <div id="detail-header-icon-wrapper" onclick="openIconPicker('detail')" class="relative cursor-pointer active:scale-95 transition-transform mb-1"></div>
+                    <span class="font-bold text-gray-800 text-lg" id="detail-task-name">加载中...</span>
+                </div>
+                <button onclick="editDetailTaskName()" class="text-sm font-bold text-[#4caf50] px-3 py-1.5 bg-[#eaf5ec] rounded-full hover:bg-[#c8e6c9]">修改名称</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 space-y-5 pb-20">
+                <div class="bg-white rounded-2xl shadow-sm p-5">
+                    <h2 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span class="text-[#4caf50]">🏷️</span> <span id="month-progress-title">月打卡进度</span>
+                    </h2>
+                    <div class="flex justify-center mb-6">
+                        <div class="relative w-32 h-32">
+                            <svg class="w-full h-full" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" fill="none" stroke="#eaf5ec" stroke-width="8"></circle>
+                                <circle id="progress-circle" class="progress-ring__circle" cx="50" cy="50" r="40" fill="none" stroke="#4caf50" stroke-width="8" stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round"></circle>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center flex-col">
+                                <span class="text-2xl font-bold text-[#4caf50]" id="detail-percent">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center divide-x divide-gray-100 border-t border-gray-50 pt-4">
+                        <div><p class="text-2xl font-bold text-gray-700" id="detail-planned">0</p><p class="text-xs text-gray-400 mt-1">计划打卡</p></div>
+                        <div><p class="text-2xl font-bold text-[#4caf50]" id="detail-actual">0</p><p class="text-xs text-gray-400 mt-1">实际打卡</p></div>
+                        <div><p class="text-2xl font-bold text-red-400" id="detail-missed">0</p><p class="text-xs text-gray-400 mt-1">错过打卡</p></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-base font-bold text-gray-800 flex items-center gap-2"><span class="text-[#4caf50]">🗂️</span> 打卡日志</h2>
+                        <span class="text-[11px] text-gray-400 bg-gray-50 px-2 py-1 rounded-full">长按记录可删除</span>
+                    </div>
+                    <div id="detail-records-list" class="space-y-3 max-h-64 overflow-y-auto pr-2"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm p-5">
+                    <h2 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2"><span class="text-[#4caf50]">📊</span> 打卡总进度</h2>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center text-sm"><span class="text-gray-500">开始日期:</span><span class="font-bold text-gray-700" id="detail-start-date">--</span></div>
+                        <div class="flex justify-between items-center text-sm"><span class="text-gray-500">距今天数:</span><span class="font-bold text-gray-700"><span id="detail-days-since">0</span> 天</span></div>
+                        <div class="flex justify-between items-center text-sm"><span class="text-gray-500">实际打卡天数:</span><span class="font-bold text-[#4caf50]"><span id="detail-total-actual">0</span> 天</span></div>
+                        <div class="flex justify-between items-center text-sm"><span class="text-gray-500">最长连续天数:</span><span class="font-bold text-orange-500"><span id="detail-longest-streak">0</span> 天</span></div>
+                    </div>
+                </div>
+
+                <div class="pt-4 pb-4">
+                    <button onclick="deleteCurrentTask()" class="w-full bg-[#fef2f2] hover:bg-[#fee2e2] text-red-500 font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm">
+                        <span class="text-lg">🗑️</span> 删除该习惯计划
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    <!-- ================= 图标选择抽屉 ================= -->
+    <div id="icon-picker-modal" class="fixed inset-0 bg-black/40 hidden z-[120] flex-col justify-end transition-opacity duration-300 opacity-0">
+        <div class="absolute inset-0" onclick="closeIconPicker()"></div>
+        <div id="icon-picker-content" class="bg-white rounded-t-3xl p-6 pb-10 transform translate-y-full transition-transform duration-300 relative z-10 max-w-md mx-auto w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold text-gray-800">定制专属图标</h3>
+                <button onclick="closeIconPicker()" class="text-gray-400 hover:text-gray-700 text-3xl leading-none">&times;</button>
+            </div>
+            <div class="mb-6">
+                <p class="text-sm font-bold text-gray-500 mb-3">使用图片</p>
+                <label class="flex items-center justify-center w-full py-4 bg-[#f8faf8] border-2 border-dashed border-[#a5d6a7] rounded-xl cursor-pointer hover:bg-[#eaf5ec] transition-colors active:scale-[0.98]">
+                    <div class="text-center">
+                        <span class="text-[#4caf50] text-2xl block mb-1">🖼️</span>
+                        <span class="text-[#4caf50] font-bold text-sm">上传照片 (自动裁切圆形)</span>
+                    </div>
+                    <input type="file" accept="image/*" class="hidden" onchange="handleCustomIconUpload(event)">
+                </label>
+            </div>
+            <div>
+                <p class="text-sm font-bold text-gray-500 mb-3">精选符号</p>
+                <div id="preset-icons-grid" class="grid grid-cols-5 gap-3 max-h-60 overflow-y-auto pb-2 px-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 打卡弹窗 -->
+    <div id="checkin-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden flex justify-center items-end sm:items-center z-[100]">
+        <div class="bg-white p-6 rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md mx-auto transform transition-transform">
+            <h3 class="text-xl font-bold mb-4 text-center text-gray-800" id="modal-title">进行打卡</h3>
+            <input type="hidden" id="current-task-id">
+            <div class="mb-4 border-2 border-dashed border-[#a5d6a7] rounded-xl p-4 text-center bg-[#f1f8e9]">
+                <label for="photo-upload" class="cursor-pointer block">
+                    <div class="text-[#4caf50] mb-2 text-3xl">📷</div>
+                    <p class="text-sm text-gray-600 font-medium">点击拍摄或上传照片</p>
+                    <input type="file" id="photo-upload" accept="image/*" class="hidden" onchange="previewImage(event)"/>
+                </label>
+                <img id="image-preview" class="hidden mt-3 rounded-lg max-h-32 mx-auto object-cover" />
+            </div>
+            <div class="mb-6">
+                <textarea id="checkin-note" rows="2" class="w-full bg-[#f8faf8] border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#4caf50]" placeholder="写点打卡心得吧（例如：已经完成作业啦！）"></textarea>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeModal()" class="flex-1 py-3.5 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 text-[15px]">取消</button>
+                <button id="submit-btn" onclick="submitCheckIn()" class="flex-1 py-3.5 bg-[#4caf50] text-white rounded-xl font-bold hover:bg-[#43a047] text-[15px]">确认打卡</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DAYS_MAP =[
+            { label: '一', value: 1 }, { label: '二', value: 2 }, 
+            { label: '三', value: 3 }, { label: '四', value: 4 }, 
+            { label: '五', value: 5 }, { label: '六', value: 6 }, 
+            { label: '日', value: 0 }
+        ];
+        
+        let tasks =[];
+        let records =[];
+        let globalViewDate = new Date();        
+        let currentDetailTaskId = null; 
+        let recordPressTimer = null;
+
+        let creatingTaskIcon = '🥔'; 
+        let creatingSelectedDays =[1, 2, 3, 4, 5, 6, 0];
+        let creatingGoal = 'once';
+        let iconSelectContext = null; 
+
+        // ECharts 统计视图状态变量
+        let myChartTrend = null;
+        let myChartDist = null;
+        let myChartRadar = null;
+        let currentStatsTab = 'week'; 
+        let currentTrendType = 'line'; 
+
+        function getStrFromDate(d) {
+            return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        }
+
+        function renderIconHtml(iconData, sizeClasses = 'w-10 h-10', textClass = 'text-xl') {
+            const icon = iconData || '🎯'; 
+            if (icon.startsWith('data:image')) {
+                return `<img src="${icon}" class="${sizeClasses} object-cover rounded-full shadow-sm border border-gray-100 shrink-0">`;
+            } else {
+                return `<div class="${sizeClasses} bg-[#fff5eb] rounded-full flex items-center justify-center ${textClass} shadow-sm border border-orange-50 shrink-0">${icon}</div>`;
+            }
+        }
+
+        async function initData() {
+            const minSplashTime = new Promise(resolve => setTimeout(resolve, 2500));
+            const loadData = (async () => {
+                let lfTasks = await localforage.getItem('habitTasks');
+                let lfRecords = await localforage.getItem('habitRecords');
+                let oldTasks = localStorage.getItem('habitTasks');
+                let oldRecords = localStorage.getItem('habitRecords');
+
+                if (!lfTasks && oldTasks) {
+                    tasks = JSON.parse(oldTasks);
+                    await localforage.setItem('habitTasks', tasks);
+                    localStorage.removeItem('habitTasks'); 
+                } else tasks = lfTasks ||[];
+
+                if (!lfRecords && oldRecords) {
+                    records = JSON.parse(oldRecords);
+                    await localforage.setItem('habitRecords', records);
+                    localStorage.removeItem('habitRecords'); 
+                } else records = lfRecords ||[];
+            })();
+
+            try {
+                await Promise.all([loadData, minSplashTime]);
+                initUI();
+                const splash = document.getElementById('splash-screen');
+                splash.style.opacity = '0'; 
+                setTimeout(() => { splash.style.display = 'none'; }, 700); 
+            } catch (err) {
+                console.error(err); alert('数据库加载失败，请刷新重试！');
+            }
+        }
+
+        function initUI() {
+            document.getElementById('header-date').innerText = new Date().toLocaleDateString('zh-CN', {month: 'long', day: 'numeric'});
+            globalViewDate = new Date();
+            initHorizontalCalendar();
+            updateCalendarSelection();
+            renderTasks();
+            renderRecords();
+        }
+
+        // ================= 侧边栏与全局搜索 =================
+        function openSidebar() {
+            const overlay = document.getElementById('sidebar-overlay');
+            const panel = document.getElementById('sidebar-panel');
+            overlay.classList.remove('hidden');
+            document.getElementById('sidebar-search-input').value = '';
+            document.getElementById('search-results-container').classList.add('hidden');
+            requestAnimationFrame(() => {
+                overlay.classList.remove('opacity-0');
+                panel.classList.remove('-translate-x-full');
+            });
+        }
+
+        function closeSidebar() {
+            const overlay = document.getElementById('sidebar-overlay');
+            const panel = document.getElementById('sidebar-panel');
+            overlay.classList.add('opacity-0');
+            panel.classList.add('-translate-x-full');
+            setTimeout(() => { overlay.classList.add('hidden'); }, 300);
+        }
+
+        function handleSearch() {
+            const query = document.getElementById('sidebar-search-input').value.trim().toLowerCase();
+            const container = document.getElementById('search-results-container');
+            if (!query) { container.classList.add('hidden'); return; }
+            const matchedTasks = tasks.filter(t => t.name.toLowerCase().includes(query));
+            if (matchedTasks.length === 0) {
+                container.innerHTML = '<div class="p-4 text-center text-sm text-gray-400">找不到该习惯...</div>';
+            } else {
+                container.innerHTML = matchedTasks.map(t => `
+                    <div class="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors" onclick="openTaskFromSearch('${t.id}')">
+                        ${renderIconHtml(t.icon, 'w-8 h-8', 'text-sm')}
+                        <span class="font-bold text-gray-700 truncate">${t.name}</span>
+                    </div>
+                `).join('');
+            }
+            container.classList.remove('hidden'); container.classList.add('flex');
+        }
+
+        function openTaskFromSearch(taskId) {
+            closeSidebar(); setTimeout(() => { openTaskDetail(taskId); }, 300); 
+        }
+
+        // ================= 作者简介 =================
+        function openAuthorView() {
+            closeSidebar();
+            setTimeout(() => {
+                document.getElementById('main-view').classList.replace('block', 'hidden');
+                const view = document.getElementById('author-view');
+                view.classList.replace('hidden', 'flex');
+            }, 300); 
+        }
+        function closeAuthorView() {
+            const view = document.getElementById('author-view');
+            view.classList.replace('flex', 'hidden');
+            document.getElementById('main-view').classList.replace('hidden', 'block');
+        }
+
+        // ================= 数据统计 (Stats View) 核心逻辑 =================
+        function openStatsView() {
+            closeSidebar();
+            setTimeout(() => {
+                document.getElementById('main-view').classList.replace('block', 'hidden');
+                const view = document.getElementById('stats-view');
+                view.classList.replace('hidden', 'flex');
+                
+                // 延迟一帧初始化，确保 ECharts 容器宽度已生成
+                setTimeout(() => {
+                    initECharts();
+                    switchStatsTab('week'); 
+                }, 100);
+            }, 300);
+        }
+
+        function closeStatsView() {
+            document.getElementById('stats-view').classList.replace('flex', 'hidden');
+            document.getElementById('main-view').classList.replace('hidden', 'block');
+        }
+
+        function initECharts() {
+            if(!myChartTrend) myChartTrend = echarts.init(document.getElementById('chart-trend'));
+            if(!myChartDist) myChartDist = echarts.init(document.getElementById('chart-dist'));
+            if(!myChartRadar) myChartRadar = echarts.init(document.getElementById('chart-radar'));
+            
+            window.addEventListener('resize', () => {
+                myChartTrend.resize(); myChartDist.resize(); myChartRadar.resize();
+            });
+        }
+
+        function switchStatsTab(tab) {
+            currentStatsTab = tab;
+            ['day', 'week', 'month'].forEach(t => {
+                const el = document.getElementById('tab-' + t);
+                if(t === tab) el.className = "pb-1 border-b-2 border-[#4caf50] text-[#4caf50] cursor-pointer transition-colors";
+                else el.className = "pb-1 border-b-2 border-transparent cursor-pointer transition-colors";
+            });
+            updateStatsData();
+        }
+
+        function switchTrendType(type) {
+            currentTrendType = type;
+            const btnLine = document.getElementById('btn-trend-line');
+            const btnBar = document.getElementById('btn-trend-bar');
+            if(type === 'line') {
+                btnLine.className = "px-3 py-1 rounded bg-white text-gray-800 shadow-sm transition-all";
+                btnBar.className = "px-3 py-1 rounded hover:text-gray-800 transition-all";
+            } else {
+                btnBar.className = "px-3 py-1 rounded bg-white text-gray-800 shadow-sm transition-all";
+                btnLine.className = "px-3 py-1 rounded hover:text-gray-800 transition-all";
+            }
+            updateStatsData(); 
+        }
+
+        function updateStatsData() {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const todayStr = getStrFromDate(today);
+
+            // 1. 确定时间范围
+            let dateRange = [];
+            let xAxisData =[];
+            
+            if (currentStatsTab === 'day') {
+                dateRange =[todayStr];
+                for(let i=6; i>=0; i--) {
+                    const d = new Date(today); d.setDate(today.getDate() - i);
+                    xAxisData.push(getStrFromDate(d).substring(5)); 
+                }
+            } else if (currentStatsTab === 'week') {
+                const day = today.getDay() || 7; 
+                const monday = new Date(today); monday.setDate(today.getDate() - day + 1);
+                for(let i=0; i<7; i++) {
+                    const d = new Date(monday); d.setDate(monday.getDate() + i);
+                    const dStr = getStrFromDate(d);
+                    dateRange.push(dStr);
+                    xAxisData.push(['周一','周二','周三','周四','周五','周六','周日'][i]);
+                }
+            } else if (currentStatsTab === 'month') {
+                const year = today.getFullYear();
+                const month = today.getMonth();
+                const lastDay = new Date(year, month + 1, 0).getDate();
+                for(let i=1; i<=lastDay; i++) {
+                    const d = new Date(year, month, i);
+                    const dStr = getStrFromDate(d);
+                    dateRange.push(dStr);
+                    if(i%5===0 || i===1) xAxisData.push(i + '日'); else xAxisData.push(''); 
+                }
+            }
+
+            // 2. 统计四宫格数据
+            let successCount = 0, failedCount = 0, notYetCount = 0;
+            let trendDataMap = {}; 
+            (currentStatsTab === 'day' ? xAxisData : dateRange).forEach(k => trendDataMap[k] = 0);
+
+            dateRange.forEach(dateStr => {
+                const dObj = new Date(dateStr);
+                const dayOfWeek = dObj.getDay();
+                tasks.forEach(task => {
+                    if (task.startDate <= dateStr && task.cycleDays.includes(dayOfWeek)) {
+                        const hasRecord = records.some(r => r.taskId === task.id && r.date === dateStr);
+                        if (hasRecord) {
+                            successCount++;
+                            if(currentStatsTab !== 'day') trendDataMap[dateStr]++;
+                        } else {
+                            if (dateStr < todayStr) failedCount++;
+                            else notYetCount++;
+                        }
+                    }
+                });
+            });
+
+            if (currentStatsTab === 'day') {
+                for(let i=6; i>=0; i--) {
+                    const d = new Date(today); d.setDate(today.getDate() - i);
+                    const dS = getStrFromDate(d);
+                    const dLabel = dS.substring(5);
+                    trendDataMap[dLabel] = records.filter(r => r.date === dS).length;
+                }
+            }
+
+            document.getElementById('stats-success').textContent = successCount;
+            document.getElementById('stats-failed').textContent = failedCount;
+            document.getElementById('stats-notyet').textContent = notYetCount;
+            
+            let rate = 0;
+            if (successCount + failedCount > 0) rate = Math.round((successCount / (successCount + failedCount)) * 100);
+            document.getElementById('stats-rate').textContent = rate;
+
+            // 3. 趋势图 ECharts
+            const trendSeriesData = currentStatsTab === 'day' ? xAxisData.map(k => trendDataMap[k]) : dateRange.map(k => trendDataMap[k]);
+            let trendOption = {
+                grid: { top: 10, left: 20, right: 10, bottom: 20 },
+                xAxis: { type: 'category', data: xAxisData, axisLine: {show: false}, axisTick: {show: false}, axisLabel: {color: '#9ca3af', fontSize: 10} },
+                yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f3f4f6' } }, axisLabel: {show: false} },
+                series:[{
+                    data: trendSeriesData,
+                    type: currentTrendType,
+                    smooth: true,
+                    symbol: 'none',
+                    itemStyle: { color: '#00a651' },
+                    areaStyle: currentTrendType === 'line' ? {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1,[
+                            { offset: 0, color: 'rgba(0, 166, 81, 0.4)' },
+                            { offset: 1, color: 'rgba(0, 166, 81, 0.0)' }
+                        ])
+                    } : null,
+                    barWidth: '40%',
+                    itemStyle: currentTrendType === 'bar' ? { color: '#00a651', borderRadius:[4,4,0,0] } : { color: '#00a651', width: 3 }
+                }]
+            };
+            myChartTrend.setOption(trendOption, true);
+
+            // 4. 分布图 ECharts
+            let categoryCounts = { '学习': 0, '工作': 0, '生活': 0, '其他': 0 };
+            records.filter(r => dateRange.includes(r.date)).forEach(r => {
+                const n = r.taskName;
+                if (/课|读|学|书|单词|背|复习|作业|政治|英语|数学|高数/.test(n)) categoryCounts['学习']++;
+                else if (/工作|班|会|报|代码|项目|方案/.test(n)) categoryCounts['工作']++;
+                else if (/步|跑|水|早起|睡|吃|饭|健|练/.test(n)) categoryCounts['生活']++;
+                else categoryCounts['其他']++;
+            });
+
+            let pieData = Object.keys(categoryCounts).map(k => ({ name: k, value: categoryCounts[k] })).filter(d => d.value > 0);
+            if(pieData.length === 0) pieData =[{name: '暂无数据', value: 1}];
+
+            let distOption = {
+                color:['#ffcdd2', '#fde68a', '#bbf7d0', '#fca5a5', '#e5e7eb'],
+                tooltip: { trigger: 'item', formatter: '{b}: {c}次 ({d}%)' },
+                legend: { bottom: '0', left: 'center', itemWidth: 8, itemHeight: 8, icon: 'circle', textStyle: { color: '#4b5563' } },
+                series:[{
+                    type: 'pie',
+                    radius:['45%', '70%'],
+                    avoidLabelOverlap: true,
+                    itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+                    label: { show: true, formatter: '{b}\n{c}', color: '#4b5563' },
+                    labelLine: { length: 10, length2: 10 },
+                    data: pieData
+                }]
+            };
+            myChartDist.setOption(distOption, true);
+
+            // 5. 雷达图 ECharts
+            let diligence = Math.min(Math.round((successCount / (dateRange.length * Math.max(tasks.length, 1))) * 100 * 1.5), 100) || 0;
+            let efficiency = rate > 0 ? Math.min(Math.round(50 + (rate / 2)), 100) : 0;
+            
+            let radarOption = {
+                radar: {
+                    indicator:[
+                        { name: '掌控', max: 100 },
+                        { name: '勤奋', max: 100 },
+                        { name: '高效', max: 100 }
+                    ],
+                    radius: '65%',
+                    splitNumber: 4,
+                    axisName: { color: '#374151', fontSize: 12 },
+                    splitArea: { areaStyle: { color:['#fff', '#f9fafb', '#f3f4f6', '#f9fafb'] } },
+                    axisLine: { lineStyle: { color: '#e5e7eb' } },
+                    splitLine: { lineStyle: { color: '#e5e7eb' } }
+                },
+                series:[{
+                    type: 'radar',
+                    data:[{
+                        value:[rate, diligence, efficiency],
+                        name: '自律指数',
+                        itemStyle: { color: '#00a651' },
+                        areaStyle: { color: 'rgba(0, 166, 81, 0.3)' }
+                    }]
+                }]
+            };
+            myChartRadar.setOption(radarOption, true);
+        }
+
+        // ================= 横向日历逻辑 =================
+        function initHorizontalCalendar() {
+            const container = document.getElementById('horizontal-calendar');
+            container.innerHTML = '';
+            const today = new Date(); today.setHours(0,0,0,0);
+            const startDate = new Date(today); startDate.setDate(today.getDate() - 30);
+            for(let i=0; i<=60; i++) {
+                const d = new Date(startDate); d.setDate(startDate.getDate() + i);
+                const dStr = getStrFromDate(d);
+                const dayNames =['日', '一', '二', '三', '四', '五', '六'];
+                const dayName = dStr === getStrFromDate(today) ? '今' : dayNames[d.getDay()];
+                const el = document.createElement('div');
+                el.className = `cal-item flex flex-col items-center justify-center shrink-0 w-[13%] max-w-[50px] cursor-pointer transition-colors pt-2 pb-2 rounded-xl`;
+                el.dataset.date = dStr; el.onclick = () => syncDate(dStr);
+                el.innerHTML = `<span class="cal-day text-[11px] mb-1.5 text-gray-500">${dayName}</span><div class="cal-num w-[34px] h-[34px] rounded-full flex items-center justify-center text-gray-700 font-medium text-[15px] transition-colors">${d.getDate()}</div>`;
+                container.appendChild(el);
+            }
+        }
+        function updateCalendarSelection() {
+            const viewStr = getStrFromDate(globalViewDate);
+            const items = document.querySelectorAll('.cal-item');
+            let selectedEl = null;
+            items.forEach(el => {
+                const daySpan = el.querySelector('.cal-day'); const numDiv = el.querySelector('.cal-num');
+                if (el.dataset.date === viewStr) {
+                    daySpan.className = 'cal-day text-[11px] mb-1.5 text-gray-800 font-bold';
+                    numDiv.className = 'cal-num w-[34px] h-[34px] rounded-full flex items-center justify-center bg-[#a5d6a7] text-[#1b5e20] font-bold shadow-sm';
+                    selectedEl = el;
+                } else {
+                    daySpan.className = 'cal-day text-[11px] mb-1.5 text-gray-500';
+                    numDiv.className = 'cal-num w-[34px] h-[34px] rounded-full flex items-center justify-center text-gray-700 font-medium bg-transparent';
+                }
+            });
+            if (selectedEl) setTimeout(() => { selectedEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }, 100);
+        }
+        function syncDate(val) { if (!val) return; const[y, m, d] = val.split('-'); globalViewDate = new Date(y, m - 1, d); updateCalendarSelection(); renderTasks(); renderRecords(); }
+
+        // ================= 全屏创建视图逻辑 =================
+        function openCreateView() {
+            document.getElementById('create-task-name').value = ''; creatingTaskIcon = '🥔'; creatingSelectedDays =[1, 2, 3, 4, 5, 6, 0]; setCreateGoal('once'); initCreateUI();
+            document.getElementById('main-view').classList.replace('block', 'hidden'); document.getElementById('create-view').classList.replace('hidden', 'flex');
+        }
+        function closeCreateView() { document.getElementById('create-view').classList.replace('flex', 'hidden'); document.getElementById('main-view').classList.replace('hidden', 'block'); }
+        function initCreateUI() {
+            const container = document.getElementById('create-week-days-container'); container.innerHTML = '';
+            DAYS_MAP.forEach(day => {
+                const isSelected = creatingSelectedDays.includes(day.value);
+                const btn = document.createElement('div');
+                btn.className = `w-[12%] aspect-square flex items-center justify-center rounded-full text-[15px] font-bold cursor-pointer transition-colors ${isSelected ? 'bg-[#eaf5ec] text-[#2e7d32]' : 'bg-transparent text-gray-400'}`;
+                btn.innerText = day.label; btn.onclick = () => toggleCreateDay(day.value, btn); container.appendChild(btn);
+            });
+            document.getElementById('create-start-date').value = getStrFromDate(new Date()); updateCreateIconPreview();
+        }
+        function toggleCreateDay(dayValue, btnElement) {
+            if (creatingSelectedDays.includes(dayValue)) {
+                if (creatingSelectedDays.length === 1) return alert('至少需要保留一天哦！');
+                creatingSelectedDays = creatingSelectedDays.filter(d => d !== dayValue);
+                btnElement.className = 'w-[12%] aspect-square flex items-center justify-center rounded-full text-[15px] font-bold cursor-pointer transition-colors bg-transparent text-gray-400';
+            } else {
+                creatingSelectedDays.push(dayValue); btnElement.className = 'w-[12%] aspect-square flex items-center justify-center rounded-full text-[15px] font-bold cursor-pointer transition-colors bg-[#eaf5ec] text-[#2e7d32]';
+            }
+        }
+        function setCreateGoal(goal) {
+            creatingGoal = goal;
+            const btnOnce = document.getElementById('goal-once'); const btnMulti = document.getElementById('goal-multiple');
+            if(goal === 'once') {
+                btnOnce.className = "flex-1 py-3 rounded-xl border-2 border-transparent bg-[#eaf5ec] text-[#2e7d32] font-bold text-sm transition-colors";
+                btnMulti.className = "flex-1 py-3 rounded-xl border-2 border-transparent bg-[#f8faf8] text-gray-500 font-bold text-sm transition-colors";
+            } else {
+                btnMulti.className = "flex-1 py-3 rounded-xl border-2 border-transparent bg-[#eaf5ec] text-[#2e7d32] font-bold text-sm transition-colors";
+                btnOnce.className = "flex-1 py-3 rounded-xl border-2 border-transparent bg-[#f8faf8] text-gray-500 font-bold text-sm transition-colors";
+            }
+        }
+        function updateCreateIconPreview() {
+            document.getElementById('create-icon-wrapper').innerHTML = `${renderIconHtml(creatingTaskIcon, 'w-24 h-24', 'text-5xl')}<div class="absolute bottom-0 right-0 bg-gray-200 text-white rounded-full w-7 h-7 border-2 border-white flex items-center justify-center shadow-sm"><span class="text-[12px] block leading-none">✏️</span></div>`;
+        }
+        function saveNewTask() {
+            const name = document.getElementById('create-task-name').value.trim(); const startDate = document.getElementById('create-start-date').value;
+            if (!name) return alert('请输入习惯名称！');
+            tasks.push({ id: 'task_' + Date.now(), name: name, icon: creatingTaskIcon, cycleDays:[...creatingSelectedDays], goal: creatingGoal, startDate: startDate, createTime: new Date().getTime() });
+            localforage.setItem('habitTasks', tasks).then(() => { closeCreateView(); renderTasks(); });
+        }
+        function openIconPicker(context) {
+            iconSelectContext = context;
+            const modal = document.getElementById('icon-picker-modal'); const content = document.getElementById('icon-picker-content');
+            const presetEmojis =['🥔','🌸','📖','🏃','🏋️','🚴','🏊','🧘','💻','📝','🧠','💧','🍎','🍳','🛌','💊','🎵','🎮','🎬','🎨','✈️','💰','🛍️','🧹','🐶','🪴','❤️','🌟','🔥','🚀'];
+            document.getElementById('preset-icons-grid').innerHTML = presetEmojis.map(emoji => `<div onclick="updateTaskIcon('${emoji}')" class="aspect-square bg-[#f5f7f5] hover:bg-[#eaf5ec] rounded-2xl flex items-center justify-center text-3xl cursor-pointer transition-colors active:scale-90 border border-transparent hover:border-[#a5d6a7]">${emoji}</div>`).join('');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            requestAnimationFrame(() => { modal.classList.remove('opacity-0'); content.classList.remove('translate-y-full'); });
+        }
+        function closeIconPicker() {
+            const modal = document.getElementById('icon-picker-modal'); const content = document.getElementById('icon-picker-content');
+            modal.classList.add('opacity-0'); content.classList.add('translate-y-full');
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300); 
+        }
+        function updateTaskIcon(iconData) {
+            if (iconSelectContext === 'create') { creatingTaskIcon = iconData; updateCreateIconPreview(); closeIconPicker(); } 
+            else if (iconSelectContext === 'detail' && currentDetailTaskId) {
+                const task = tasks.find(t => t.id === currentDetailTaskId);
+                if(task) { task.icon = iconData; localforage.setItem('habitTasks', tasks).then(() => { closeIconPicker(); renderTasks(); updateDetailHeaderIcon(task); }); }
+            }
+        }
+        function handleCustomIconUpload(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                    const size = 150; canvas.width = size; canvas.height = size;
+                    const minDim = Math.min(img.width, img.height); const startX = (img.width - minDim) / 2; const startY = (img.height - minDim) / 2;
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size); ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, size, size);
+                    updateTaskIcon(canvas.toDataURL('image/jpeg', 0.8));
+                }; img.src = e.target.result;
+            }; reader.readAsDataURL(file); event.target.value = '';
+        }
+
+        // ================= 详情页逻辑 =================
+        function updateDetailHeaderIcon(task) {
+            document.getElementById('detail-header-icon-wrapper').innerHTML = `${renderIconHtml(task.icon, 'w-14 h-14', 'text-3xl')}<div class="absolute bottom-0 right-0 bg-white rounded-full w-5 h-5 shadow border border-gray-100 flex items-center justify-center"><span class="text-[10px] block leading-none">🔄</span></div>`;
+        }
+        function startRecordPress(recordId) {
+            if (recordPressTimer) clearTimeout(recordPressTimer);
+            recordPressTimer = setTimeout(() => {
+                if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
+                if (confirm('⚠️ 确定要删除这条打卡记录吗？\n删除后，该任务的月度进度和连续天数将自动重新计算！')) {
+                    records = records.filter(r => r.id !== recordId);
+                    localforage.setItem('habitRecords', records).then(() => {
+                        if (currentDetailTaskId) openTaskDetail(currentDetailTaskId); 
+                        renderTasks(); renderRecords(); 
+                    });
+                }
+            }, 700); 
+        }
+        function cancelRecordPress() { if (recordPressTimer) { clearTimeout(recordPressTimer); recordPressTimer = null; } }
+        function openTaskDetail(taskId) {
+            currentDetailTaskId = taskId; const task = tasks.find(t => t.id === taskId); if(!task) return;
+            document.getElementById('main-view').classList.replace('block', 'hidden');
+            const detailView = document.getElementById('detail-view'); detailView.classList.replace('hidden', 'flex'); detailView.classList.add('slide-in');
+            document.getElementById('detail-task-name').textContent = task.name; updateDetailHeaderIcon(task);
+
+            const now = new Date(); const todayStr = getStrFromDate(now); const currentMonth = now.getMonth(); const currentYear = now.getFullYear();
+            document.getElementById('month-progress-title').textContent = `月打卡进度 - ${currentMonth + 1}月`;
+            let plannedThisMonth = 0; let actualThisMonth = 0; let missedThisMonth = 0;
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            for(let i=1; i<=daysInMonth; i++) {
+                const d = new Date(currentYear, currentMonth, i); const dStr = getStrFromDate(d);
+                if (dStr >= task.startDate && task.cycleDays.includes(d.getDay())) {
+                    plannedThisMonth++;
+                    if (records.some(r => r.taskId === task.id && r.date === dStr)) actualThisMonth++; else if (dStr < todayStr) missedThisMonth++; 
+                }
+            }
+            document.getElementById('detail-planned').textContent = plannedThisMonth; document.getElementById('detail-actual').textContent = actualThisMonth; document.getElementById('detail-missed').textContent = missedThisMonth;
+            const percent = plannedThisMonth === 0 ? 0 : Math.round((actualThisMonth / plannedThisMonth) * 100);
+            document.getElementById('detail-percent').textContent = `${percent}%`;
+            setTimeout(() => { document.getElementById('progress-circle').style.strokeDashoffset = 251.2 - (percent / 100) * 251.2; }, 100);
+
+            const logContainer = document.getElementById('detail-records-list'); logContainer.innerHTML = '';
+            const taskRecords = records.filter(r => r.taskId === task.id);
+            if (taskRecords.length === 0) logContainer.innerHTML = `<div class="bg-gray-50 rounded-xl p-4 text-center text-gray-400 text-sm border border-dashed border-gray-200">📭 暂无打卡日志</div>`;
+            else {
+                taskRecords.forEach(r => {
+                    const rDiv = document.createElement('div'); rDiv.className = 'flex items-center justify-between p-3 bg-[#f8faf8] rounded-xl border border-gray-100 cursor-pointer select-none [-webkit-touch-callout:none] transition-transform active:scale-[0.98]';
+                    rDiv.onmousedown = () => startRecordPress(r.id); rDiv.ontouchstart = () => startRecordPress(r.id);
+                    rDiv.onmouseup = cancelRecordPress; rDiv.onmouseleave = cancelRecordPress; rDiv.ontouchend = cancelRecordPress; rDiv.ontouchmove = cancelRecordPress; rDiv.oncontextmenu = (e) => e.preventDefault(); 
+                    let imgHtml = r.image ? `<img src="${r.image}" class="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0 pointer-events-none">` : `<div class="w-10 h-10 bg-[#eaf5ec] rounded-lg flex items-center justify-center text-xl shrink-0 pointer-events-none">📝</div>`;
+                    let noteHtml = r.note ? `<p class="text-xs text-gray-500 truncate w-32 pointer-events-none">${r.note}</p>` : '';
+                    rDiv.innerHTML = `<div class="flex items-center gap-3 pointer-events-none">${imgHtml}<div><p class="font-bold text-sm text-gray-800">${r.date}</p>${noteHtml}</div></div><span class="text-xs text-gray-400 bg-white px-2 py-1 rounded shadow-sm border border-gray-50 pointer-events-none">${r.time}</span>`;
+                    logContainer.appendChild(rDiv);
+                });
+            }
+            const daysSince = Math.floor((now - new Date(task.startDate)) / (1000 * 60 * 60 * 24));
+            let scheduledDates =[]; let tempD = new Date(task.startDate);
+            while(getStrFromDate(tempD) <= todayStr) {
+                if(task.cycleDays.includes(tempD.getDay())) scheduledDates.push(getStrFromDate(tempD));
+                tempD.setDate(tempD.getDate() + 1);
+            }
+            scheduledDates.reverse(); 
+            let maxStreak = 0; let currentStreak = 0;
+            for(let dateStr of scheduledDates) {
+                if(records.some(r => r.taskId === task.id && r.date === dateStr)) { currentStreak++; if(currentStreak > maxStreak) maxStreak = currentStreak; } else currentStreak = 0; 
+            }
+            document.getElementById('detail-start-date').textContent = new Date(task.startDate).toLocaleDateString('zh-CN'); document.getElementById('detail-days-since').textContent = daysSince >= 0 ? daysSince : 0; document.getElementById('detail-total-actual').textContent = taskRecords.length; document.getElementById('detail-longest-streak').textContent = maxStreak;
+        }
+        function closeDetailView() {
+            document.getElementById('detail-view').classList.remove('slide-in'); document.getElementById('detail-view').classList.replace('flex', 'hidden');
+            document.getElementById('main-view').classList.replace('hidden', 'block'); currentDetailTaskId = null; document.getElementById('progress-circle').style.strokeDashoffset = 251.2;
+        }
+        function editDetailTaskName() {
+            if(!currentDetailTaskId) return; const task = tasks.find(t => t.id === currentDetailTaskId);
+            const newName = prompt('✏️ 请输入新的习惯名称：', task.name);
+            if (newName !== null && newName.trim() !== '') {
+                task.name = newName.trim(); records.forEach(r => { if (r.taskId === task.id) r.taskName = task.name; });
+                Promise.all([localforage.setItem('habitTasks', tasks), localforage.setItem('habitRecords', records)]).then(() => {
+                    document.getElementById('detail-task-name').textContent = task.name; renderTasks(); renderRecords();
+                });
+            }
+        }
+        function deleteCurrentTask() {
+            if(!currentDetailTaskId) return;
+            if(confirm('确定要彻底删除这个习惯计划吗？')) {
+                tasks = tasks.filter(t => t.id !== currentDetailTaskId); localforage.setItem('habitTasks', tasks).then(() => { closeDetailView(); renderTasks(); });
+            }
+        }
+
+        // ================= 列表渲染逻辑 =================
+        function renderTasks() {
+            const listDiv = document.getElementById('today-tasks-list'); listDiv.innerHTML = '';
+            const todayStr = getStrFromDate(new Date()); const viewDateStr = getStrFromDate(globalViewDate);
+            const todaysTasks = tasks.filter(task => task.startDate <= viewDateStr && task.cycleDays.includes(globalViewDate.getDay()));
+            if (todaysTasks.length === 0) { listDiv.innerHTML = '<div class="text-center p-8 bg-gray-50 rounded-xl text-gray-400 text-sm border border-dashed border-gray-200">这一天休息，没有任何打卡任务哦~</div>'; return; }
+            todaysTasks.forEach(task => {
+                const hasCheckedIn = records.some(r => r.taskId === task.id && r.date === viewDateStr);
+                let buttonHtml = hasCheckedIn ? `<button disabled class="bg-gray-50 text-gray-400 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 border border-gray-100">已完成</button>` :
+                                 viewDateStr > todayStr ? `<button disabled class="bg-gray-50 text-gray-400 px-4 py-2 rounded-xl text-sm font-bold border border-gray-100">未开始</button>` :
+                                 viewDateStr < todayStr ? `<button onclick="openModal('${task.id}', '${task.name}')" class="bg-orange-50 text-orange-500 border border-orange-100 px-4 py-2 rounded-xl text-sm font-bold hover:bg-orange-100">补卡</button>` :
+                                 `<button onclick="openModal('${task.id}', '${task.name}')" class="bg-[#eaf5ec] text-[#2e7d32] px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#c8e6c9] transition-colors shadow-sm">去打卡</button>`;
+                const div = document.createElement('div');
+                div.className = 'bg-white p-3 flex justify-between items-center rounded-2xl shadow-sm border border-gray-100 transition-transform active:scale-[0.98]'; 
+                div.innerHTML = `<div class="flex items-center gap-3 select-none flex-1 cursor-pointer" onclick="openTaskDetail('${task.id}')">${renderIconHtml(task.icon, 'w-11 h-11', 'text-2xl')}<div><p class="font-bold text-gray-800 text-[15px]">${task.name}</p><p class="text-[11px] text-gray-400 mt-0.5">点击查看数据</p></div></div>${buttonHtml}`;
+                listDiv.appendChild(div);
+            });
+        }
+        function openModal(taskId, taskName) {
+            document.getElementById('current-task-id').value = taskId; document.getElementById('modal-title').textContent = getStrFromDate(globalViewDate) < getStrFromDate(new Date()) ? `补卡: ${taskName}` : `打卡: ${taskName}`;
+            document.getElementById('photo-upload').value = ''; document.getElementById('image-preview').classList.add('hidden'); document.getElementById('checkin-note').value = ''; 
+            const btn = document.getElementById('submit-btn'); btn.textContent = '确认打卡'; btn.disabled = false; btn.className = 'flex-1 py-3.5 bg-[#4caf50] text-white rounded-xl font-bold hover:bg-[#43a047] text-[15px]';
+            document.getElementById('checkin-modal').classList.remove('hidden');
+        }
+        function closeModal() { document.getElementById('checkin-modal').classList.add('hidden'); }
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) { const reader = new FileReader(); reader.onload = function(e) { const img = document.getElementById('image-preview'); img.src = e.target.result; img.classList.remove('hidden'); }; reader.readAsDataURL(file); }
+        }
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                    const MAX_WIDTH = 800, MAX_HEIGHT = 800; let width = img.width, height = img.height;
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    canvas.width = width; canvas.height = height; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0, width, height);
+                    callback(canvas.toDataURL('image/jpeg', 0.6));
+                }; img.src = e.target.result;
+            }; reader.readAsDataURL(file);
+        }
+        function submitCheckIn() {
+            const taskId = document.getElementById('current-task-id').value; const fileInput = document.getElementById('photo-upload'); const note = document.getElementById('checkin-note').value.trim();
+            if (!fileInput.files[0] && !note) return alert('请至少上传照片或写一句心得！');
+            const btn = document.getElementById('submit-btn'); btn.textContent = '保存中...'; btn.disabled = true; btn.className = 'flex-1 py-3.5 bg-gray-400 text-white rounded-xl font-bold text-[15px]';
+            const saveRecord = (imageBase64) => {
+                const task = tasks.find(t => t.id === taskId);
+                records.unshift({ id: 'rec_' + Date.now(), taskId: taskId, taskName: task.name, date: getStrFromDate(globalViewDate), time: new Date().toLocaleTimeString('zh-CN', { hour12: false }), image: imageBase64, note: note });
+                localforage.setItem('habitRecords', records).then(() => { closeModal(); renderTasks(); renderRecords(); }).catch(() => { alert('保存失败，请重试！'); records.shift(); btn.textContent = '确认打卡'; btn.disabled = false; btn.className = 'flex-1 py-3.5 bg-[#4caf50] text-white rounded-xl font-bold hover:bg-[#43a047] text-[15px]'; });
+            };
+            if (fileInput.files[0]) compressImage(fileInput.files[0], saveRecord); else saveRecord(null);
+        }
+        function renderRecords() {
+            const historyListDiv = document.getElementById('history-list'); historyListDiv.innerHTML = '';
+            const viewHistoryStr = getStrFromDate(globalViewDate); const dailyRecords = records.filter(r => r.date === viewHistoryStr);
+            if (dailyRecords.length === 0) { historyListDiv.innerHTML = `<p class="text-gray-400 text-sm col-span-2 text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">这一天还没有留下足迹哦~</p>`; return; }
+            dailyRecords.forEach(record => {
+                const div = document.createElement('div'); div.className = 'bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col relative';
+                let imageHtml = record.image ? `<img src="${record.image}" class="w-full h-32 object-cover">` : `<div class="w-full h-24 bg-[#f1f8e9] flex items-center justify-center text-3xl">📝</div>`;
+                let noteHtml = record.note ? `<div class="px-3 py-2 text-xs text-gray-600 border-b border-gray-50 italic">"${record.note}"</div>` : '';
+                div.innerHTML = `<div class="relative overflow-hidden bg-gray-200">${imageHtml}<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white pointer-events-none"><p class="text-xs font-bold drop-shadow-md">${record.taskName}</p></div></div>${noteHtml}<div class="p-2 flex justify-between items-center bg-[#fcfdfc] mt-auto"><span class="text-[10px] text-gray-400">✅ ${record.date}</span><span class="text-[10px] text-gray-400">${record.time}</span></div>`;
+                historyListDiv.appendChild(div);
+            });
+        }
+        window.onload = initData;
+    </script>
+</body>
 </html>
